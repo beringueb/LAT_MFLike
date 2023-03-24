@@ -49,116 +49,33 @@ class TheoryForge_MFLike:
             self.expected_params_nuis = mflike.expected_params_nuis
             self.spec_meta = mflike.spec_meta
             self.defaults_cuts = mflike.defaults
+            self.use_acts = mflike.use_acts
+            self.use_acte = mflike.use_acte
+            self.use_sptg = mflike.use_sptg
+            self.freqs = {"acts": [148, 220],
+                          "acte": [148, 220],
+                          "sptg": [90, 150, 220],
+                          }
 
             # Initialize foreground model
             self._init_foreground_model()
 
-            # Parameters for template from file
-            self.use_systematics_template = bool(mflike.systematics_template)
-            
-            if self.use_systematics_template:
-                self.systematics_template = mflike.systematics_template
-                # Initialize template for marginalization, if needed
-                self._init_template_from_file()
-
-            # Parameters for band integration
-            self.use_top_hat_band = bool(mflike.top_hat_band)
-            if self.use_top_hat_band:
-                self.bandint_nsteps = mflike.top_hat_band["nsteps"]
-                self.bandint_width = mflike.top_hat_band["bandwidth"]
-
-                # checks on the bandpass input params, to be done only at the initialization
-                if not hasattr(self.bandint_width, "__len__"):
-                    self.bandint_width = np.full_like(
-                        self.experiments, self.bandint_width, dtype=float
-                    )
-                if self.bandint_nsteps > 1 and np.any(np.array(self.bandint_width) == 0):
-                    raise LoggedError(
-                        self.log, "One band has width = 0, set a positive width and run again"
-                    )
-
-    # Takes care of the bandpass construction. It returns a list of nu-transmittance
-    # for each frequency or an array with the effective freqs.
-    def _bandpass_construction(self, **params):
-        data_are_monofreq = False
-        self.bandint_freqs = []
-        for iexp, exp in enumerate(self.experiments):
-            bandpar = f"bandint_shift_{exp}"
-            # Only temperature bandpass for the time being
-            bands = self.bands[f"{exp}_s0"]
-            nu_ghz, bp = np.asarray(bands["nu"]), np.asarray(bands["bandpass"])
-            # computing top-hat bandpass to make band integration
-            if self.use_top_hat_band:
-                # Compute central frequency given bandpass in the sacc file
-                fr = nu_ghz @ bp / bp.sum()
-                if self.bandint_nsteps > 1:
-                    bandlow = fr * (1 - self.bandint_width[iexp] * 0.5)
-                    bandhigh = fr * (1 + self.bandint_width[iexp] * 0.5)
-                    nubtrue = np.linspace(bandlow, bandhigh, self.bandint_nsteps, dtype=float)
-                    nub = np.linspace(
-                        bandlow + params[bandpar],
-                        bandhigh + params[bandpar],
-                        self.bandint_nsteps,
-                        dtype=float,
-                    )
-                    tranb = _cmb2bb(nub)
-                    tranb_norm = np.trapz(_cmb2bb(nubtrue), nubtrue)
-                    self.bandint_freqs.append([nub, tranb / tranb_norm])
-                # in case we don't want to do band integration, e.g. when we have multifreq bandpass in sacc file
-                if self.bandint_nsteps == 1:
-                    nub = fr + params[bandpar]
-                    data_are_monofreq = True
-                    self.bandint_freqs.append(nub)
-            # using the bandpass from sacc file
-            else:
-                nub = nu_ghz + params[bandpar]
-                if len(bp) == 1:
-                    # Monofrequency channel
-                    data_are_monofreq = True
-                    self.bandint_freqs.append(nub[0])
-                else:
-                    trans_norm = np.trapz(bp * _cmb2bb(nu_ghz), nu_ghz)
-                    trans = bp / trans_norm * _cmb2bb(nub)
-                    self.bandint_freqs.append([nub, trans])
-
-        # fgspectra can't mix monofrequency with [nu, bp]. If one channel is mono-frequency then we
-        # assume all of them and pass to fgspectra an array (not list!!) of frequencies
-        if data_are_monofreq:
-            self.bandint_freqs = np.asarray(self.bandint_freqs)
-
     def get_modified_theory(self, Dls, **params):
-
         fg_params = {k: params[k] for k in self.expected_params_fg}
         nuis_params = {k: params[k] for k in self.expected_params_nuis}
-
-        # compute bandpasses at each step only if bandint_shift params are not null
-        # and bandint_freqs has been computed at least once
-        if np.all(
-            np.array([nuis_params[k] for k in nuis_params.keys() if "bandint_shift_" in k]) == 0.0
-        ):
-            if not hasattr(self, "bandint_freqs"):
-                self.log.info("Computing bandpass at first step, no shifts")
-                self._bandpass_construction(**nuis_params)
-        else:
-            self._bandpass_construction(**nuis_params)
 
         fg_dict = self._get_foreground_model(**fg_params)
 
         cmbfg_dict = {}
         # Sum CMB and FGs
         for exp1, exp2 in product(self.experiments, self.experiments):
+            # if exp1[:4] != exp2[:4]:  #no cross experiments spectra
+            #     continue
             for s in self.requested_cls:
                 cmbfg_dict[s, exp1, exp2] = Dls[s] + fg_dict[s, "all", exp1, exp2]
 
         # Apply alm based calibration factors
         cmbfg_dict = self._get_calibrated_spectra(cmbfg_dict, **nuis_params)
-
-        # Introduce spectra rotations
-        cmbfg_dict = self._get_rotated_spectra(cmbfg_dict, **nuis_params)
-
-        # Introduce templates of systematics from file, if needed
-        if self.use_systematics_template:
-            cmbfg_dict = self._get_template_from_file(cmbfg_dict, **nuis_params)
 
         # Built theory
         dls_dict = {}
@@ -190,21 +107,27 @@ class TheoryForge_MFLike:
         from fgspectra import power as fgp
 
         template_path = os.path.join(os.path.dirname(os.path.abspath(fgp.__file__)), "data")
-        cibc_file = os.path.join(template_path, "cl_cib_Choi2020.dat")
+        cibc_file = "/Users/benjaminberingue/Documents/Research/ACT/project/0223_mflike-highL/highL_2015/data/Fg/cib_extra.dat"
+        ksz_file = "/Users/benjaminberingue/Documents/Research/ACT/project/0223_mflike-highL/highL_2015/data/Fg/cl_ksz_Trac_nt20.dat"
+        tsz_file = "/Users/benjaminberingue/Documents/Research/ACT/project/0223_mflike-highL/highL_2015/data/Fg/tsz_143_eps0.50ext.dat"
+        tszxcib_file = "/Users/benjaminberingue/Documents/Research/ACT/project/0223_mflike-highL/highL_2015/data/Fg/sz_x_cib_template.dat"
 
         # set pivot freq and multipole
         self.fg_nu_0 = self.foregrounds["normalisation"]["nu_0"]
         self.fg_ell_0 = self.foregrounds["normalisation"]["ell_0"]
 
-        # We don't seem to be using this
-        # cirrus = fgc.FactorizedCrossSpectrum(fgf.PowerLaw(), fgp.PowerLaw())
-        self.ksz = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(), fgp.kSZ_bat())
-        self.cibp = fgc.FactorizedCrossSpectrum(fgf.ModifiedBlackBody(), fgp.PowerLaw())
-        self.radio = fgc.FactorizedCrossSpectrum(fgf.PowerLaw(), fgp.PowerLaw())
-        self.tsz = fgc.FactorizedCrossSpectrum(fgf.ThermalSZ(), fgp.tSZ_150_bat())
-        self.cibc = fgc.FactorizedCrossSpectrum(fgf.CIB(), fgp.PowerSpectrumFromFile(cibc_file))
-        self.dust = fgc.FactorizedCrossSpectrum(fgf.ModifiedBlackBody(), fgp.PowerLaw())
-        self.tSZ_and_CIB = fgc.SZxCIB_Choi2020()
+        self.cirrus_act = fgc.FactorizedCrossSpectrum(fgf.PowerLaw(), fgp.PowerLaw())
+        self.cirrus_spt = fgc.FactorizedCrossSpectrum(fgf.FreeSED(), fgp.PowerLaw())
+        self.ksz = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(), fgp.PowerSpectrumFromFile(ksz_file))
+        self.poisson = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(), fgp.PowerLaw())
+        self.tsz = fgc.FactorizedCrossSpectrum(fgf.ThermalSZ(), fgp.PowerSpectrumFromFile(tsz_file))
+        self.cibc = fgc.FactorizedCrossSpectrum(fgf.FreeSED(), fgp.PowerSpectrumFromFile(cibc_file))
+        self.tSZ_and_CIB = fgc.CorrelatedFactorizedCrossSpectrum(fgf.Join(fgf.ThermalSZ(),fgf.FreeSED()),
+                                                   fgp.PowerSpectraAndCovariance(
+                                                       fgp.PowerSpectrumFromFile(tsz_file),
+                                                       fgp.PowerSpectrumFromFile(cibc_file),
+                                                       fgp.PowerSpectrumFromFile(tszxcib_file)))
+
 
         components = self.foregrounds["components"]
         self.fg_component_list = {s: components[s] for s in self.requested_cls}
@@ -223,103 +146,131 @@ class TheoryForge_MFLike:
         ell_0clp = ell_0 * (ell_0 + 1.0)
 
         model = {}
-        model["tt", "kSZ"] = fg_params["a_kSZ"] * self.ksz(
-            {"nu": self.bandint_freqs}, {"ell": ell, "ell_0": ell_0}
-        )
-        model["tt", "cibp"] = fg_params["a_p"] * self.cibp(
-            {
-                "nu": self.bandint_freqs,
-                "nu_0": nu_0,
-                "temp": fg_params["T_d"],
-                "beta": fg_params["beta_p"],
-            },
-            {"ell": ell_clp, "ell_0": ell_0clp, "alpha": 1},
-        )
-        model["tt", "radio"] = fg_params["a_s"] * self.radio(
-            {"nu": self.bandint_freqs, "nu_0": nu_0, "beta": -0.5 - 2.0},
-            {"ell": ell_clp, "ell_0": ell_0clp, "alpha": 1},
-        )
-        model["tt", "tSZ"] = fg_params["a_tSZ"] * self.tsz(
-            {"nu": self.bandint_freqs, "nu_0": nu_0},
-            {"ell": ell, "ell_0": ell_0},
-        )
-        model["tt", "cibc"] = fg_params["a_c"] * self.cibc(
-            {
-                "nu": self.bandint_freqs,
-                "nu_0": nu_0,
-                "temp": fg_params["T_d"],
-                "beta": fg_params["beta_c"],
-            },
-            {"ell": ell, "ell_0": ell_0},
-        )
-        model["tt", "dust"] = fg_params["a_gtt"] * self.dust(
-            {"nu": self.bandint_freqs, "nu_0": nu_0, "temp": 19.6, "beta": 1.5},
-            {"ell": ell, "ell_0": 500.0, "alpha": -0.6},
-        )
-        model["tt", "tSZ_and_CIB"] = self.tSZ_and_CIB(
-            {
-                "kwseq": (
-                    {"nu": self.bandint_freqs, "nu_0": nu_0},
-                    {
-                        "nu": self.bandint_freqs,
-                        "nu_0": nu_0,
-                        "temp": fg_params["T_d"],
-                        "beta": fg_params["beta_c"],
-                    },
-                )
-            },
-            {
-                "kwseq": (
-                    {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
-                    {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
-                    {
-                        "ell": ell,
-                        "ell_0": ell_0,
-                        "amp": -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_c"]),
-                    },
-                )
-            },
-        )
+        if self.use_acts:
+            model["acts", "tt", "kSZ"] = self.ksz({"nu": np.array([146.9, 220.2])},
+                                                  {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_kSZ"]},
+                                                  )
+            poisson_amp = np.array([[fg_params["aps_148"], np.sqrt(fg_params["aps_148"]*fg_params["aps_218"]) * fg_params["rpsa"]],
+                                   [np.sqrt(fg_params["aps_148"]*fg_params["aps_218"]) * fg_params["rpsa"], fg_params["aps_218"]]])
+            model["acts", "tt", "poisson"] = self.poisson({"nu": np.array([146.9, 220.2])},
+                                                          {"ell": ell_clp, "ell_0": ell_0clp,
+                                                           "alpha": 1., "amp": poisson_amp},
+                                                          )
+            model["acts", "tt", "tSZ"] = self.tsz({"nu": np.array([146.9, 220.2]), "nu_0": 143.},
+                                                  {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
+                                                  )
+            model["acts", "tt", "cibc"] = self.cibc({"nu": np.array([149.7,219.6]), "sed": np.array([0.12, 0.89])**.5},
+                                                    {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
+                                                    )
+            model["acts", "tt", "cirrus"] = self.cirrus_act({"nu": np.array([149.7, 219.6]), "nu_0": nu_0, "beta": 3.8-2.},
+                                                            {"ell": ell, "ell_0": ell_0, "alpha": -0.7, "amp": fg_params["a_gtt_as"]},
+                                                            )
+            model["acts", "tt", "tSZ_and_CIB"] = self.tSZ_and_CIB(
+                {"kwseq": ({"nu": np.array([146.9, 220.2]), "nu_0": 143.},
+                           {"nu": np.array([146.9, 220.2]), "sed": np.array([0.12, 0.89])**.5})},
+                {"kwseq": ({"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
+                           {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
+                           {"ell": ell, "ell_0": ell_0, "amp": -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_c"])},
+                           )
+                },
+            )
 
-        model["ee", "radio"] = fg_params["a_psee"] * self.radio(
-            {"nu": self.bandint_freqs, "nu_0": nu_0, "beta": -0.5 - 2.0},
-            {"ell": ell_clp, "ell_0": ell_0clp, "alpha": 1},
-        )
-        model["ee", "dust"] = fg_params["a_gee"] * self.dust(
-            {"nu": self.bandint_freqs, "nu_0": nu_0, "temp": 19.6, "beta": 1.5},
-            {"ell": ell, "ell_0": 500.0, "alpha": -0.4},
-        )
-
-        model["te", "radio"] = fg_params["a_pste"] * self.radio(
-            {"nu": self.bandint_freqs, "nu_0": nu_0, "beta": -0.5 - 2.0},
-            {"ell": ell_clp, "ell_0": ell_0clp, "alpha": 1},
-        )
-        model["te", "dust"] = fg_params["a_gte"] * self.dust(
-            {"nu": self.bandint_freqs, "nu_0": nu_0, "temp": 19.6, "beta": 1.5},
-            {"ell": ell, "ell_0": 500.0, "alpha": -0.4},
-        )
+        if self.use_acte:
+            model["acte", "tt", "kSZ"] = self.ksz({"nu": np.array([146.9, 220.2])},
+                                                  {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_kSZ"]},
+                                                  )
+            poisson_amp = np.array([[fg_params["aps_148"], np.sqrt(fg_params["aps_148"]*fg_params["aps_218"]) * fg_params["rpsa"]],
+                                   [np.sqrt(fg_params["aps_148"]*fg_params["aps_218"]) * fg_params["rpsa"], fg_params["aps_218"]]])
+            model["acte", "tt", "poisson"] = self.poisson({"nu": np.array([146.9, 220.2])},
+                                                          {"ell": ell_clp, "ell_0": ell_0clp,
+                                                           "alpha": 1., "amp": poisson_amp},
+                                                          )
+            model["acte", "tt", "tSZ"] = self.tsz({"nu": np.array([146.9, 220.2]), "nu_0": 143.},
+                                                  {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
+                                                  )
+            model["acte", "tt", "cibc"] = self.cibc({"nu": np.array([149.7,219.6]), "sed": np.array([0.12, 0.89])**.5},
+                                                    {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
+                                                    )
+            model["acte", "tt", "cirrus"] = self.cirrus_act({"nu": np.array([149.7, 219.6]), "nu_0": nu_0, "beta": 3.8-2.},
+                                                            {"ell": ell, "ell_0": ell_0, "alpha": -0.7, "amp": fg_params["a_gtt_ae"]},
+                                                            )
+            model["acte", "tt", "tSZ_and_CIB"] = self.tSZ_and_CIB(
+                {"kwseq": ({"nu": np.array([146.9, 220.2]), "nu_0": 143.},
+                           {"nu": np.array([146.9, 220.2]), "sed": np.array([0.12, 0.89])**.5})},
+                {"kwseq": ({"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
+                           {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
+                           {"ell": ell, "ell_0": ell_0, "amp": -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_c"])},
+                           )
+                },
+            )
+        if self.use_sptg:
+            model["sptg", "tt", "kSZ"] = self.ksz({"nu": np.array([97.6, 153.1, 218.1])},
+                                                  {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_kSZ"]},
+                                                  )
+            poisson_amp = np.array([[fg_params["aps_90"],
+                                     fg_params["rps0"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_150"]),
+                                     fg_params["rps1"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_220"])],
+                                    [fg_params["rps0"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_150"]),
+                                     fg_params["aps_150"],
+                                     fg_params["rps2"] * np.sqrt(fg_params["aps_220"] * fg_params["aps_150"])],
+                                    [fg_params["rps1"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_220"]),
+                                     fg_params["rps2"] * np.sqrt(fg_params["aps_220"] * fg_params["aps_150"]),
+                                     fg_params["aps_220"]]])
+            model["sptg", "tt", "poisson"] = self.poisson({"nu": np.array([97.6, 153.1, 218.1])},
+                                                          {"ell": ell_clp, "ell_0": ell_0clp,
+                                                           "alpha": 1., "amp": poisson_amp},
+                                                          )
+            model["sptg", "tt", "tSZ"] = self.tsz({"nu": np.array([97.6, 153.1, 218.1]), "nu_0": 143.},
+                                                  {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
+                                                  )
+            model["sptg", "tt", "cibc"] = self.cibc({"nu": np.array([97.6, 153.1, 218.1]),
+                                                     "sed": np.array([0.026, 0.14, 0.91])**.5},
+                                                    {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
+                                                    )
+            model["sptg", "tt", "cirrus"] = self.cirrus_spt({"nu": np.array([97.6, 153.1, 218.1]),
+                                                             "sed": np.array([0.16,0.21,2.19])**.5},
+                                                            {"ell": ell, "ell_0": ell_0, "alpha": -0.7, "amp": 1.},
+                                                        )
+            model["sptg", "tt", "tSZ_and_CIB"] = self.tSZ_and_CIB(
+                {"kwseq": ({"nu": np.array([97.6, 153.1, 218.1]), "nu_0": 143.},
+                           {"nu": np.array([97.6, 153.1, 218.1]), "sed": np.array([0.026, 0.14, 0.91])**.5})},
+                {"kwseq": ({"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
+                           {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
+                           {"ell": ell, "ell_0": ell_0, "amp": -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_c"])},
+                           )
+                },
+            )
 
         fg_dict = {}
         if not hasattr(freqs_order, "__len__"):
             experiments = self.experiments
         else:
             experiments = freqs_order
-        for c1, exp1 in enumerate(experiments):
-            for c2, exp2 in enumerate(experiments):
+        for exp1 in experiments:
+            for exp2 in experiments:
+                if exp1[:4] != exp2[:4]:
+                    exp = "sptg"  #Dodgy ... set all cross correlations between experiemnts to irrelevant values
+                    c1=0
+                    c2=0
+                else:
+                    exp = exp1[:4]
+                    c1 = self.freqs[exp].index(int(exp1[5:]))
+                    c2 = self.freqs[exp].index(int(exp2[5:]))
                 for s in self.requested_cls:
                     fg_dict[s, "all", exp1, exp2] = np.zeros(len(ell))
                     for comp in self.fg_component_list[s]:
                         if comp == "tSZ_and_CIB":
-                            fg_dict[s, "tSZ", exp1, exp2] = model[s, "tSZ"][c1, c2]
-                            fg_dict[s, "cibc", exp1, exp2] = model[s, "cibc"][c1, c2]
+                            fg_dict[s, "tSZ", exp1, exp2] = model[exp, s, "tSZ"][c1, c2]
+                            fg_dict[s, "cibc", exp1, exp2] = model[exp, s, "cibc"][c1, c2]
                             fg_dict[s, "tSZxCIB", exp1, exp2] = (
-                                model[s, comp][c1, c2]
-                                - model[s, "tSZ"][c1, c2]
-                                - model[s, "cibc"][c1, c2]
+                                model[exp, s, comp][c1, c2]
+                                - model[exp, s, "tSZ"][c1, c2]
+                                - model[exp, s, "cibc"][c1, c2]
                             )
-                            fg_dict[s, "all", exp1, exp2] += model[s, comp][c1, c2]
+                            fg_dict[s, "all", exp1, exp2] += model[exp, s, comp][c1, c2]
+                            # fg_dict[s, "all", exp1, exp2] += fg_dict[s, "tSZxCIB", exp1, exp2]
                         else:
-                            fg_dict[s, comp, exp1, exp2] = model[s, comp][c1, c2]
+                            fg_dict[s, comp, exp1, exp2] = model[exp, s, comp][c1, c2]
                             fg_dict[s, "all", exp1, exp2] += fg_dict[s, comp, exp1, exp2]
 
         return fg_dict
@@ -339,16 +290,8 @@ class TheoryForge_MFLike:
 
         cal_pars = {}
         if "tt" in self.requested_cls or "te" in self.requested_cls:
-            cal = nuis_params["calG_all"] * np.array(
-                [nuis_params[f"cal_{exp}"] * nuis_params[f"calT_{exp}"] for exp in self.experiments]
-            )
+            cal = np.array([nuis_params[f"cal_{exp}"] for exp in self.experiments])
             cal_pars["tt"] = 1 / cal
-
-        if "ee" in self.requested_cls or "te" in self.requested_cls:
-            cal = nuis_params["calG_all"] * np.array(
-                [nuis_params[f"cal_{exp}"] * nuis_params[f"calE_{exp}"] for exp in self.experiments]
-            )
-            cal_pars["ee"] = 1 / cal
 
         calib = syl.Calibration_alm(ell=self.l_bpws, spectra=dls_dict)
 
@@ -363,7 +306,9 @@ class TheoryForge_MFLike:
 
         from syslibrary import syslib_mflike as syl
 
-        rot_pars = [nuis_params[f"alpha_{exp}"] for exp in self.experiments]
+        # rot_pars = [nuis_params[f"alpha_{exp}"] for exp in self.experiments]
+        rot_pars = [0. for exp in self.experiments]
+
 
         rot = syl.Rotation_alm(ell=self.l_bpws, spectra=dls_dict)
 

@@ -1,4 +1,4 @@
-from .mflike import MFLike
+from .mflike import MFLikehighL
 
 from ._version import get_versions
 __version__ = get_versions()['version']
