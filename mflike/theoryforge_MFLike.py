@@ -55,6 +55,7 @@ class TheoryForge_MFLike:
             self.freqs = {"acts": [148, 220],
                           "acte": [148, 220],
                           "sptg": [90, 150, 220],
+                          "sptr": [90, 150, 220],
                           }
 
             # Initialize foreground model
@@ -112,6 +113,10 @@ class TheoryForge_MFLike:
         tsz_file = "/Users/benjaminberingue/Documents/Research/ACT/project/0223_mflike-highL/highL_2015/data/Fg/tsz_143_eps0.50ext.dat"
         tszxcib_file = "/Users/benjaminberingue/Documents/Research/ACT/project/0223_mflike-highL/highL_2015/data/Fg/sz_x_cib_template.dat"
 
+        tsz_file_reichardt = "/Users/benjaminberingue/Documents/Research/ACT/project/0623_reichardt_mflike/likelihood_fortran/ptsrc/dl_shaw_tsz_s10_153ghz_norm1_fake25000.txt"
+        ksz_file_reichardt = "/Users/benjaminberingue/Documents/Research/ACT/project/0623_reichardt_mflike/likelihood_fortran/ptsrc/dl_ksz_CSFplusPATCHY_13sep2011_norm1_fake25000.txt"
+
+
         # set pivot freq and multipole
         self.fg_nu_0 = self.foregrounds["normalisation"]["nu_0"]
         self.fg_ell_0 = self.foregrounds["normalisation"]["ell_0"]
@@ -127,6 +132,9 @@ class TheoryForge_MFLike:
                                                        fgp.PowerSpectrumFromFile(tsz_file),
                                                        fgp.PowerSpectrumFromFile(cibc_file),
                                                        fgp.PowerSpectrumFromFile(tszxcib_file)))
+
+        self.tsz_spt_reichardt = fgc.FactorizedCrossSpectrum(fgf.ThermalSZ(), fgp.PowerSpectrumFromFile(tsz_file_reichardt))
+        self.ksz_spt_reichardt = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(), fgp.PowerSpectrumFromFile(ksz_file_reichardt))
 
 
         components = self.foregrounds["components"]
@@ -241,6 +249,44 @@ class TheoryForge_MFLike:
                 },
             )
 
+        if self.use_sptr:
+            model["sptg", "tt", "kSZ"] = self.ksz_spt_reichardt({"nu": self.freqs["sptr"]},
+                                                                {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_kSZ"]},
+                                                                )
+            poisson_amp = np.array([[fg_params["aps_90"],
+                                     fg_params["rps0"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_150"]),
+                                     fg_params["rps1"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_220"])],
+                                    [fg_params["rps0"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_150"]),
+                                     fg_params["aps_150"],
+                                     fg_params["rps2"] * np.sqrt(fg_params["aps_220"] * fg_params["aps_150"])],
+                                    [fg_params["rps1"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_220"]),
+                                     fg_params["rps2"] * np.sqrt(fg_params["aps_220"] * fg_params["aps_150"]),
+                                     fg_params["aps_220"]]])
+            model["sptg", "tt", "poisson"] = self.poisson({"nu": np.array([97.6, 153.1, 218.1])}, #TODO
+                                                          {"ell": ell_clp, "ell_0": ell_0clp,
+                                                           "alpha": 1., "amp": poisson_amp},
+                                                          )
+            model["sptg", "tt", "tSZ"] = self.tsz_spt_reichardt({"nu": np.array([96.55, 152.26,220.10]), "nu_0": 143.},
+                                                                {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
+                                                                )
+            model["sptg", "tt", "cibc"] = self.cibc({"nu": np.array([97.6, 153.1, 218.1]), #TODO
+                                                     "sed": np.array([0.026, 0.14, 0.91])**.5},
+                                                    {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
+                                                    )
+            model["sptg", "tt", "cirrus"] = self.cirrus_spt({"nu": np.array([97.6, 153.1, 218.1]), #TODO
+                                                             "sed": np.array([0.16,0.21,2.19])**.5},
+                                                            {"ell": ell, "ell_0": ell_0, "alpha": -0.7, "amp": 1.},
+                                                        )
+            model["sptg", "tt", "tSZ_and_CIB"] = self.tSZ_and_CIB(   #TODO
+                {"kwseq": ({"nu": np.array([97.6, 153.1, 218.1]), "nu_0": 143.},
+                           {"nu": np.array([97.6, 153.1, 218.1]), "sed": np.array([0.026, 0.14, 0.91])**.5})},
+                {"kwseq": ({"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
+                           {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
+                           {"ell": ell, "ell_0": ell_0, "amp": -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_c"])},
+                           )
+                },
+            )
+
         fg_dict = {}
         if not hasattr(freqs_order, "__len__"):
             experiments = self.experiments
@@ -249,7 +295,8 @@ class TheoryForge_MFLike:
         for exp1 in experiments:
             for exp2 in experiments:
                 if exp1[:4] != exp2[:4]:
-                    exp = "sptg"  #Dodgy ... set all cross correlations between experiemnts to irrelevant values
+                    exp = "sptg"  #Dodgy ... set all cross correlations between experiemn
+                    # ts to irrelevant values
                     c1=0
                     c2=0
                 else:
@@ -351,3 +398,166 @@ class TheoryForge_MFLike:
                     )
 
         return dls_dict
+
+class TheoryForge_PlikMFLike:
+    def __init__(self, mflike=None):
+
+        if mflike is None:
+            import logging
+
+            self.log = logging.getLogger(self.__class__.__name__.lower())
+            self.data_folder = None
+            self.experiments = np.array(["LAT_93", "LAT_145", "LAT_225"])
+            self.foregrounds = {
+                "normalisation": {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725},
+                "components": {
+                    "tt": ["kSZ", "tSZ_and_CIB", "cibp", "dust", "radio"],
+                    "te": ["radio", "dust"],
+                    "ee": ["radio", "dust"],
+                },
+            }
+            self.l_bpws = np.arange(2, 6002)
+            self.requested_cls = ["tt", "te", "ee"]
+            self.bandint_freqs = np.array([93.0, 145.0, 225.0])
+            self.use_top_hat_band = False
+        else:
+            self.log = mflike.log
+            self.data_folder = mflike.data_folder
+            self.foregrounds = mflike.foregrounds
+            self.requested_cls = mflike.requested_cls
+            self.expected_params = mflike.expected_params
+            self.defaults_cuts = mflike.defaults
+        from fgspectra import cross as fgc
+        from fgspectra import frequency as fgf
+        from fgspectra import power as fgp
+
+        ksz_planck_file = fgp._get_power_file("ksz_planck")
+        tsz_planck_file = fgp._get_power_file("tsz_planck")
+        tszxcib_planck_file = fgp._get_power_file("sz_x_cib_planck")
+
+        self.ksz = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(), fgp.PowerSpectrumFromFile(ksz_planck_file))
+        self.tsz = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(), fgp.PowerSpectrumFromFile(tsz_planck_file))
+        self.cib = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(), fgp.CIB_Planck())
+        self.ttps = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(), fgp.PowerLaw())
+        self.tszxcib = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(), fgp.PowerSpectrumFromFile(tszxcib_planck_file))
+        self.gal = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(), fgp.gal_Planck())
+        self.galte = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(), fgp.PowerLaw())
+
+    def get_Planck_foreground(self, fg_params, ell, requested_cls=['tt', 'te', 'ee']):
+        components = self.foregrounds["components"]
+        self.fg_component_list = {s: components[s] for s in self.requested_cls}
+
+        # The spectra templates for the foregrounds.
+
+        nu_0 = self.foregrounds["normalisation"]["nu_0"]
+        ell_0 = self.foregrounds["normalisation"]["ell_0"]
+
+        frequencies = np.asarray([100, 143, 217], dtype=int)
+
+        tSZcorr = np.array([2.022, 0.95, 0.0000476])
+        CIBcorr = np.array([0.0, 0.094, 1.0])
+
+        model = {}
+
+        # A lot of the foreground modeling is done very explicitly, due to
+        # the way it is supposed to work with fgspectra and the way it
+        # used to be done in plik.
+
+        tsz_amp = np.zeros((len(frequencies), len(frequencies)))
+        tsz_amp[0, 0] = fg_params['a_tSZ'] * tSZcorr[0]
+        tsz_amp[1, 1] = fg_params['a_tSZ'] * tSZcorr[1]
+        tsz_amp[1, 2] = fg_params['a_tSZ'] * np.sqrt(tSZcorr[2])
+        tsz_amp[2, 2] = fg_params['a_tSZ'] * tSZcorr[2]
+
+        ps_amp = np.zeros((len(frequencies), len(frequencies)))
+        ps_amp[0, 0] = fg_params['aps_100_100']
+        ps_amp[1, 1] = fg_params['aps_143_143']
+        ps_amp[1, 2] = fg_params['aps_143_217']
+        ps_amp[2, 2] = fg_params['aps_217_217']
+
+        gal_amp = np.zeros((len(frequencies), len(frequencies)))
+        gal_amp[0, 0] = fg_params['gal545_A_100']
+        gal_amp[1, 1] = fg_params['gal545_A_143']
+        gal_amp[1, 2] = fg_params['gal545_A_143_217']
+        gal_amp[2, 1] = fg_params['gal545_A_143_217']
+        gal_amp[2, 2] = fg_params['gal545_A_217']
+
+        galte_amp = np.zeros((len(frequencies), len(frequencies)))
+        galte_amp[0, 0] = fg_params['galf_TE_A_100']
+        galte_amp[0, 1] = fg_params['galf_TE_A_100_143']
+        galte_amp[0, 2] = fg_params['galf_TE_A_100_217']
+        galte_amp[1, 0] = fg_params['galf_TE_A_100_143']
+        galte_amp[2, 0] = fg_params['galf_TE_A_100_217']
+        galte_amp[1, 1] = fg_params['galf_TE_A_143']
+        galte_amp[1, 2] = fg_params['galf_TE_A_143_217']
+        galte_amp[2, 1] = fg_params['galf_TE_A_143_217']
+        galte_amp[2, 2] = fg_params['galf_TE_A_217']
+
+        galee_amp = np.zeros((len(frequencies), len(frequencies)))
+        galee_amp[0, 0] = fg_params['galf_EE_A_100']
+        galee_amp[0, 1] = fg_params['galf_EE_A_100_143']
+        galee_amp[0, 2] = fg_params['galf_EE_A_100_217']
+        galee_amp[1, 0] = fg_params['galf_EE_A_100_143']
+        galee_amp[2, 0] = fg_params['galf_EE_A_100_217']
+        galee_amp[1, 1] = fg_params['galf_EE_A_143']
+        galee_amp[1, 2] = fg_params['galf_EE_A_143_217']
+        galee_amp[2, 1] = fg_params['galf_EE_A_143_217']
+        galee_amp[2, 2] = fg_params['galf_EE_A_217']
+
+        szcib_amp = np.zeros((len(frequencies), len(frequencies)))
+        szcib_amp[0, 0] = -2.0 * fg_params['xi'] * np.sqrt(
+            fg_params['a_tSZ'] * tSZcorr[0] * fg_params['a_c'] * CIBcorr[0])
+        szcib_amp[1, 1] = -2.0 * fg_params['xi'] * np.sqrt(
+            fg_params['a_tSZ'] * tSZcorr[1] * fg_params['a_c'] * CIBcorr[1])
+        szcib_amp[1, 2] = -fg_params['xi'] * np.sqrt(
+            fg_params['a_tSZ'] * tSZcorr[1] * fg_params['a_c'] * CIBcorr[2]) - fg_params['xi'] * np.sqrt(
+            fg_params['a_tSZ'] * tSZcorr[2] * fg_params['a_c'] * CIBcorr[1])
+        szcib_amp[2, 2] = -2.0 * fg_params['xi'] * np.sqrt(
+            fg_params['a_tSZ'] * tSZcorr[2] * fg_params['a_c'] * CIBcorr[2])
+
+        ell_clp = ell * (ell + 1.0)
+        ell_0clp = ell_0 * (ell_0 + 1.0)
+
+        model['tt', 'kSZ'] = fg_params['a_kSZ'] * self.ksz({'nu': frequencies}, {'ell': ell, 'ell_0': ell_0})
+        model['tt', 'tSZ'] = tsz_amp[..., np.newaxis] * self.tsz({"nu": frequencies}, {"ell": ell, "ell_0": ell_0})
+        model['tt', 'tSZxCIB'] = szcib_amp[..., np.newaxis] * self.tszxcib({"nu": frequencies}, {"ell": ell, "ell_0": ell_0})
+        model['tt', 'poisson'] = ps_amp[..., np.newaxis] * self.ttps({"nu": frequencies},
+                                                           {"ell": ell_clp, "ell_0": ell_0clp, "alpha": 1.})
+        model['tt', 'CIB'] = fg_params['a_c'] * self.cib({"nu": frequencies},
+                                                    {"ell": ell, "ell_0": ell_0, 'n_cib': fg_params['cib_index']})
+        model['tt', 'galactic'] = gal_amp[..., np.newaxis] * self.gal({"nu": frequencies}, {"ell": ell})
+
+        model['te', 'galactic'] = galte_amp[..., np.newaxis] * self.galte({"nu": frequencies}, {"ell": ell, "ell_0": 500.0,
+                                                                                      "alpha": fg_params[
+                                                                                                   "galf_TE_index"] + 2.0})
+        model['ee', 'galactic'] = galee_amp[..., np.newaxis] * self.galte({"nu": frequencies}, {"ell": ell, "ell_0": 500.0,
+                                                                                      "alpha": fg_params[
+                                                                                                   "galf_EE_index"] + 2.0})
+
+        fg_dict = {}
+
+        for idx, (i, j) in enumerate([(0, 0), (1, 1), (1, 2), (2, 2)]):
+            f1, f2 = frequencies[i], frequencies[j]
+
+            fg_dict['tt', 'kSZ', f1, f2] = model['tt', 'kSZ'][i, j]
+            fg_dict['tt', 'tSZ', f1, f2] = model['tt', 'tSZ'][i, j]
+            fg_dict['tt', 'tSZxCIB', f1, f2] = model['tt', 'tSZxCIB'][i, j]
+            fg_dict['tt', 'poisson', f1, f2] = model['tt', 'poisson'][i, j]
+            fg_dict['tt', 'CIB', f1, f2] = model['tt', 'CIB'][i, j]  # Picking the right template.
+            fg_dict['tt', 'galactic', f1, f2] = model['tt', 'galactic'][i, j]
+
+        for i, f1 in enumerate(frequencies):
+            for j, f2 in enumerate(frequencies):
+                fg_dict['te', 'galactic', f1, f2] = model['te', 'galactic'][i, j]
+                fg_dict['ee', 'galactic', f1, f2] = model['ee', 'galactic'][i, j]
+
+        # component_list = {'tt': ['kSZ', 'tSZ', 'tSZxCIB', 'CIB', 'gal', 'ps'], 'te': ['gal'], 'ee': ['gal']}
+        for c1, f1 in enumerate(frequencies):
+            for c2, f2 in enumerate(frequencies):
+                for s in requested_cls:
+                    fg_dict[s, "all", f1, f2] = np.zeros(len(ell))
+                    for comp in self.fg_component_list[s]:
+                        if (s, comp, f1, f2) in fg_dict:
+                            fg_dict[s, "all", f1, f2] += fg_dict[s, comp, f1, f2]
+
+        return fg_dict
