@@ -20,23 +20,7 @@ class TheoryForge_MFLike:
     def __init__(self, mflike=None):
 
         if mflike is None:
-            import logging
-
-            self.log = logging.getLogger(self.__class__.__name__.lower())
-            self.data_folder = None
-            self.experiments = np.array(["LAT_93", "LAT_145", "LAT_225"])
-            self.foregrounds = {
-                "normalisation": {"nu_0": 150.0, "ell_0": 3000, "T_CMB": 2.725},
-                "components": {
-                    "tt": ["kSZ", "tSZ_and_CIB", "cibp", "dust", "radio"],
-                    "te": ["radio", "dust"],
-                    "ee": ["radio", "dust"],
-                },
-            }
-            self.l_bpws = np.arange(2, 6002)
-            self.requested_cls = ["tt", "te", "ee"]
-            self.bandint_freqs = np.array([93.0, 145.0, 225.0])
-            self.use_top_hat_band = False
+            raise LoggedError(self.log("Using theory forge without mflike, not supported yet ... "))
         else:
             self.log = mflike.log
             self.data_folder = mflike.data_folder
@@ -45,7 +29,7 @@ class TheoryForge_MFLike:
             self.bands = mflike.bands
             self.l_bpws = mflike.l_bpws
             self.requested_cls = mflike.requested_cls
-            self.expected_params_fg = mflike.expected_params_fg
+            self.expected_params_fg = mflike.expected_params_fg #TODO: change to read from file ?
             self.expected_params_nuis = mflike.expected_params_nuis
             self.spec_meta = mflike.spec_meta
             self.defaults_cuts = mflike.defaults
@@ -57,6 +41,7 @@ class TheoryForge_MFLike:
                           "sptg": [90, 150, 220],
                           "sptr": [90, 150, 220],
                           }
+            self.exp = mflike.exp
 
             # Initialize foreground model
             self._init_foreground_model()
@@ -101,44 +86,129 @@ class TheoryForge_MFLike:
     ###########################################################################
 
     # Initializes the foreground model. It sets the SED and reads the templates
+
+    def _construct_fgs(self, component):
+        keys = list(component.keys())
+        sed = getattr(self.fgf, keys[0])()
+        sed_dict = component[keys[0]]
+        cl_dict = component[keys[1]]
+        cl_dict["ell"] = self.l_bpws
+        sed_dict["nu"] = np.fromstring(sed_dict["nu"], dtype=float, sep=',')
+        if keys[1] == "PowerSpectrumFromFile":
+            try:
+                template = self.fgp._get_power_file(cl_dict["file"])
+            except ValueError:
+                raise LoggedError(self.log, f"Check if you have template {cl_dict['file']} for {keys[1]}")
+            cl = getattr(self.fgp, keys[1])(template)
+            del cl_dict["file"]
+        elif keys[1][:-3] == "PowerLaw":
+            cl = getattr(self.fgp, keys[1][:-3])()
+        else:
+            cl = getattr(self.fgp, keys[1])()
+        params = component["params"]
+        param_access = {'sed_kwargs': {}, 'cl_kwargs': {}}
+        for key, value in sed_dict.items():
+            if value in params:
+                param_access['sed_kwargs'][key] = value
+        for key, value in cl_dict.items():
+            if value in params:
+                param_access['cl_kwargs'][key] = value
+        for key in param_access['sed_kwargs']:
+            del sed_dict[key]
+        for key in param_access['cl_kwargs']:
+            del cl_dict[key]
+        sed.set_defaults(**sed_dict)
+        cl.set_defaults(**cl_dict)
+        model = self.fgc.FactorizedCrossSpectrum(sed, cl)
+        return model, param_access
+
+    def _construct_tszxcib(self, component):
+        sed_keys = list(component.keys())
+
+        sed_list = [getattr(self. fgf, sed_key)() for sed_key in component[sed_keys[0]].keys()]
+
+        sed_dict_keys = list(component[sed_keys[0]].keys())
+        sed_dict_list = [component[sed_keys[0]][sed_dict_key] for sed_dict_key in sed_dict_keys]
+        for d in sed_dict_list:
+            d["nu"] = np.fromstring(d["nu"], dtype=float, sep=',')
+
+        cl_dict_keys = list(component[sed_keys[1]].keys())
+        cl_dict_list = [component[sed_keys[1]][cl_dict_key] for cl_dict_key in cl_dict_keys]
+        cl_list = []
+        for d in cl_dict_list:
+            d["ell"] = self.l_bpws
+
+        for i, cl_key in enumerate(cl_dict_keys):
+            if cl_key[:-4] == "PowerSpectrumFromFile":
+                file = cl_dict_list[i]["file"]
+                try:
+                    template = self.fgp._get_power_file(file)
+                except ValueError:
+                    raise LoggedError(self.log, f"Check if you have template {file} for {cl_key}")
+                cl_list.append(getattr(self.fgp, cl_key[:-4])(template))
+                del cl_dict_list[i]["file"]
+            else:
+                cl_list.append(getattr(self.fgp, cl_key)())
+
+        params = component["params"]
+
+        param_access = {
+            'sed_kwargs': {
+                "kwseq": [
+                    {key: value for key, value in sed_dict.items() if value in params}
+                    for sed_dict in sed_dict_list
+                ]
+            },
+            'cl_kwargs': {
+                "kwseq": [
+                    {key: value for key, value in cl_dict.items() if value in params}
+                    for cl_dict in cl_dict_list
+                ]
+            }
+        }
+
+        model = fgc.CorrelatedFactorizedCrossSpectrum(fgf.Join(*sed_list), fgp.PowerSpectraAndCovariance(*cl_list))
+        model.set_defaults(**{"sed_kwargs": {"kwseq": sed_dict_list}, "cl_kwargs": {"kwseq": cl_dict_list}})
+
+        return model, param_access
+
     def _init_foreground_model(self):
 
         from fgspectra import cross as fgc
         from fgspectra import frequency as fgf
         from fgspectra import power as fgp
-
+        self.fgp = fgp
+        self.fgc = fgc
+        self.fgf = fgf
         template_path = os.path.join(os.path.dirname(os.path.abspath(fgp.__file__)), "data")
-        cibc_file = "/Users/benjaminberingue/Documents/Research/ACT/project/0223_mflike-highL/highL_2015/data/Fg/cib_extra.dat"
-        ksz_file = "/Users/benjaminberingue/Documents/Research/ACT/project/0223_mflike-highL/highL_2015/data/Fg/cl_ksz_Trac_nt20.dat"
-        tsz_file = "/Users/benjaminberingue/Documents/Research/ACT/project/0223_mflike-highL/highL_2015/data/Fg/tsz_143_eps0.50ext.dat"
-        tszxcib_file = "/Users/benjaminberingue/Documents/Research/ACT/project/0223_mflike-highL/highL_2015/data/Fg/sz_x_cib_template.dat"
 
-        tsz_file_reichardt = "/Users/benjaminberingue/Documents/Research/ACT/project/0623_reichardt_mflike/likelihood_fortran/ptsrc/dl_shaw_tsz_s10_153ghz_norm1_fake25000.txt"
-        ksz_file_reichardt = "/Users/benjaminberingue/Documents/Research/ACT/project/0623_reichardt_mflike/likelihood_fortran/ptsrc/dl_ksz_CSFplusPATCHY_13sep2011_norm1_fake25000.txt"
+        components = {}
+        for exp in self.exp:
+            for s in self.requested_cls:
+                for _, (key, value) in enumerate(self.foregrounds["components"][s][exp].items()):
+                    print(f"Doing {key}")
+                    if key.lower() in ["tszxcibc", "tszxcib", "tsz_and_cibc", "tsz_and cib", "tsz_x_cibc", "tsz_x_cib"]:
+                        model, param_access = self._construct_tszxcib(value)
+                    else:
+                        model, param_access = self._construct_fgs(value)
+                    components[exp, s, key, "model"] = model
+                    components[exp, s, key, "param_access"] = param_access
+        self.fg_component_list = components
 
+    def _evaluate_fgs(self, component, fg_params):
+        model = component["model"]
+        param_access = component["param_access"]
+        print(param_access.items())
 
-        # set pivot freq and multipole
-        self.fg_nu_0 = self.foregrounds["normalisation"]["nu_0"]
-        self.fg_ell_0 = self.foregrounds["normalisation"]["ell_0"]
+        def search_for_params(kwargs, base=[]):
+            for _, (key, val) in enumerate(kwargs.items()):
+                if isinstance(val, dict):
+                    search_for_params(val, base + [key])
+                elif val in fg_params:
+                    kwargs[key] = fg_params[val]
 
-        self.cirrus_act = fgc.FactorizedCrossSpectrum(fgf.PowerLaw(), fgp.PowerLaw())
-        self.cirrus_spt = fgc.FactorizedCrossSpectrum(fgf.FreeSED(), fgp.PowerLaw())
-        self.ksz = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(), fgp.PowerSpectrumFromFile(ksz_file))
-        self.poisson = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(), fgp.PowerLaw())
-        self.tsz = fgc.FactorizedCrossSpectrum(fgf.ThermalSZ(), fgp.PowerSpectrumFromFile(tsz_file))
-        self.cibc = fgc.FactorizedCrossSpectrum(fgf.FreeSED(), fgp.PowerSpectrumFromFile(cibc_file))
-        self.tSZ_and_CIB = fgc.CorrelatedFactorizedCrossSpectrum(fgf.Join(fgf.ThermalSZ(),fgf.FreeSED()),
-                                                   fgp.PowerSpectraAndCovariance(
-                                                       fgp.PowerSpectrumFromFile(tsz_file),
-                                                       fgp.PowerSpectrumFromFile(cibc_file),
-                                                       fgp.PowerSpectrumFromFile(tszxcib_file)))
-
-        self.tsz_spt_reichardt = fgc.FactorizedCrossSpectrum(fgf.ThermalSZ(), fgp.PowerSpectrumFromFile(tsz_file_reichardt))
-        self.ksz_spt_reichardt = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(), fgp.PowerSpectrumFromFile(ksz_file_reichardt))
-
-
-        components = self.foregrounds["components"]
-        self.fg_component_list = {s: components[s] for s in self.requested_cls}
+        search_for_params(param_access)
+        return model.eval(**param_access)
 
     # Gets the actual power spectrum of foregrounds given the passed parameters
     def _get_foreground_model(self, ell=None, freqs_order=None, **fg_params):
@@ -154,138 +224,10 @@ class TheoryForge_MFLike:
         ell_0clp = ell_0 * (ell_0 + 1.0)
 
         model = {}
-        if self.use_acts:
-            model["acts", "tt", "kSZ"] = self.ksz({"nu": np.array([146.9, 220.2])},
-                                                  {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_kSZ"]},
-                                                  )
-            poisson_amp = np.array([[fg_params["aps_148"], np.sqrt(fg_params["aps_148"]*fg_params["aps_218"]) * fg_params["rpsa"]],
-                                   [np.sqrt(fg_params["aps_148"]*fg_params["aps_218"]) * fg_params["rpsa"], fg_params["aps_218"]]])
-            model["acts", "tt", "poisson"] = self.poisson({"nu": np.array([146.9, 220.2])},
-                                                          {"ell": ell_clp, "ell_0": ell_0clp,
-                                                           "alpha": 1., "amp": poisson_amp},
-                                                          )
-            model["acts", "tt", "tSZ"] = self.tsz({"nu": np.array([146.9, 220.2]), "nu_0": 143.},
-                                                  {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
-                                                  )
-            model["acts", "tt", "cibc"] = self.cibc({"nu": np.array([149.7,219.6]), "sed": np.array([0.12, 0.89])**.5},
-                                                    {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
-                                                    )
-            model["acts", "tt", "cirrus"] = self.cirrus_act({"nu": np.array([149.7, 219.6]), "nu_0": nu_0, "beta": 3.8-2.},
-                                                            {"ell": ell, "ell_0": ell_0, "alpha": -0.7, "amp": fg_params["a_gtt_as"]},
-                                                            )
-            model["acts", "tt", "tSZ_and_CIB"] = self.tSZ_and_CIB(
-                {"kwseq": ({"nu": np.array([146.9, 220.2]), "nu_0": 143.},
-                           {"nu": np.array([146.9, 220.2]), "sed": np.array([0.12, 0.89])**.5})},
-                {"kwseq": ({"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
-                           {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
-                           {"ell": ell, "ell_0": ell_0, "amp": -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_c"])},
-                           )
-                },
-            )
-
-        if self.use_acte:
-            model["acte", "tt", "kSZ"] = self.ksz({"nu": np.array([146.9, 220.2])},
-                                                  {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_kSZ"]},
-                                                  )
-            poisson_amp = np.array([[fg_params["aps_148"], np.sqrt(fg_params["aps_148"]*fg_params["aps_218"]) * fg_params["rpsa"]],
-                                   [np.sqrt(fg_params["aps_148"]*fg_params["aps_218"]) * fg_params["rpsa"], fg_params["aps_218"]]])
-            model["acte", "tt", "poisson"] = self.poisson({"nu": np.array([146.9, 220.2])},
-                                                          {"ell": ell_clp, "ell_0": ell_0clp,
-                                                           "alpha": 1., "amp": poisson_amp},
-                                                          )
-            model["acte", "tt", "tSZ"] = self.tsz({"nu": np.array([146.9, 220.2]), "nu_0": 143.},
-                                                  {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
-                                                  )
-            model["acte", "tt", "cibc"] = self.cibc({"nu": np.array([149.7,219.6]), "sed": np.array([0.12, 0.89])**.5},
-                                                    {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
-                                                    )
-            model["acte", "tt", "cirrus"] = self.cirrus_act({"nu": np.array([149.7, 219.6]), "nu_0": nu_0, "beta": 3.8-2.},
-                                                            {"ell": ell, "ell_0": ell_0, "alpha": -0.7, "amp": fg_params["a_gtt_ae"]},
-                                                            )
-            model["acte", "tt", "tSZ_and_CIB"] = self.tSZ_and_CIB(
-                {"kwseq": ({"nu": np.array([146.9, 220.2]), "nu_0": 143.},
-                           {"nu": np.array([146.9, 220.2]), "sed": np.array([0.12, 0.89])**.5})},
-                {"kwseq": ({"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
-                           {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
-                           {"ell": ell, "ell_0": ell_0, "amp": -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_c"])},
-                           )
-                },
-            )
-        if self.use_sptg:
-            model["sptg", "tt", "kSZ"] = self.ksz({"nu": np.array([97.6, 153.1, 218.1])},
-                                                  {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_kSZ"]},
-                                                  )
-            poisson_amp = np.array([[fg_params["aps_90"],
-                                     fg_params["rps0"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_150"]),
-                                     fg_params["rps1"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_220"])],
-                                    [fg_params["rps0"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_150"]),
-                                     fg_params["aps_150"],
-                                     fg_params["rps2"] * np.sqrt(fg_params["aps_220"] * fg_params["aps_150"])],
-                                    [fg_params["rps1"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_220"]),
-                                     fg_params["rps2"] * np.sqrt(fg_params["aps_220"] * fg_params["aps_150"]),
-                                     fg_params["aps_220"]]])
-            model["sptg", "tt", "poisson"] = self.poisson({"nu": np.array([97.6, 153.1, 218.1])},
-                                                          {"ell": ell_clp, "ell_0": ell_0clp,
-                                                           "alpha": 1., "amp": poisson_amp},
-                                                          )
-            model["sptg", "tt", "tSZ"] = self.tsz({"nu": np.array([97.6, 153.1, 218.1]), "nu_0": 143.},
-                                                  {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
-                                                  )
-            model["sptg", "tt", "cibc"] = self.cibc({"nu": np.array([97.6, 153.1, 218.1]),
-                                                     "sed": np.array([0.026, 0.14, 0.91])**.5},
-                                                    {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
-                                                    )
-            model["sptg", "tt", "cirrus"] = self.cirrus_spt({"nu": np.array([97.6, 153.1, 218.1]),
-                                                             "sed": np.array([0.16,0.21,2.19])**.5},
-                                                            {"ell": ell, "ell_0": ell_0, "alpha": -0.7, "amp": 1.},
-                                                        )
-            model["sptg", "tt", "tSZ_and_CIB"] = self.tSZ_and_CIB(
-                {"kwseq": ({"nu": np.array([97.6, 153.1, 218.1]), "nu_0": 143.},
-                           {"nu": np.array([97.6, 153.1, 218.1]), "sed": np.array([0.026, 0.14, 0.91])**.5})},
-                {"kwseq": ({"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
-                           {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
-                           {"ell": ell, "ell_0": ell_0, "amp": -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_c"])},
-                           )
-                },
-            )
-
-        if self.use_sptr:
-            model["sptg", "tt", "kSZ"] = self.ksz_spt_reichardt({"nu": self.freqs["sptr"]},
-                                                                {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_kSZ"]},
-                                                                )
-            poisson_amp = np.array([[fg_params["aps_90"],
-                                     fg_params["rps0"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_150"]),
-                                     fg_params["rps1"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_220"])],
-                                    [fg_params["rps0"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_150"]),
-                                     fg_params["aps_150"],
-                                     fg_params["rps2"] * np.sqrt(fg_params["aps_220"] * fg_params["aps_150"])],
-                                    [fg_params["rps1"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_220"]),
-                                     fg_params["rps2"] * np.sqrt(fg_params["aps_220"] * fg_params["aps_150"]),
-                                     fg_params["aps_220"]]])
-            model["sptg", "tt", "poisson"] = self.poisson({"nu": np.array([97.6, 153.1, 218.1])}, #TODO
-                                                          {"ell": ell_clp, "ell_0": ell_0clp,
-                                                           "alpha": 1., "amp": poisson_amp},
-                                                          )
-            model["sptg", "tt", "tSZ"] = self.tsz_spt_reichardt({"nu": np.array([96.55, 152.26,220.10]), "nu_0": 143.},
-                                                                {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
-                                                                )
-            model["sptg", "tt", "cibc"] = self.cibc({"nu": np.array([97.6, 153.1, 218.1]), #TODO
-                                                     "sed": np.array([0.026, 0.14, 0.91])**.5},
-                                                    {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
-                                                    )
-            model["sptg", "tt", "cirrus"] = self.cirrus_spt({"nu": np.array([97.6, 153.1, 218.1]), #TODO
-                                                             "sed": np.array([0.16,0.21,2.19])**.5},
-                                                            {"ell": ell, "ell_0": ell_0, "alpha": -0.7, "amp": 1.},
-                                                        )
-            model["sptg", "tt", "tSZ_and_CIB"] = self.tSZ_and_CIB(   #TODO
-                {"kwseq": ({"nu": np.array([97.6, 153.1, 218.1]), "nu_0": 143.},
-                           {"nu": np.array([97.6, 153.1, 218.1]), "sed": np.array([0.026, 0.14, 0.91])**.5})},
-                {"kwseq": ({"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
-                           {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
-                           {"ell": ell, "ell_0": ell_0, "amp": -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_c"])},
-                           )
-                },
-            )
+        for exp in self.exp:
+            for s in self.requested_cls:
+                for _, (key, value) in enumerate(self.fg_component_list.items()):
+                    model[exp, s, key] = self._evaluate_fgs(value, fg_params)
 
         fg_dict = {}
         if not hasattr(freqs_order, "__len__"):

@@ -86,6 +86,14 @@ class MFLike(InstallableLikelihood):
         self.use_sptg = use_sptg
         self.use_sptr = use_sptr
 
+        exp = []
+        if self.use_acts: exp.append("acts")
+        if self.use_acte: exp.append("acte")
+        if self.use_sptr: exp.append("sptr")
+        if self.use_sptg: exp.append("sptg")
+        self.exp = exp
+        print(self.exp)
+
         if self.use_sptr and self.use_sptg:
             raise LoggedError(self.log("Using both Reichardt and George likelihood, please check your yaml file !"))
 
@@ -100,7 +108,7 @@ class MFLike(InstallableLikelihood):
         if use_sptg:
             self.expected_params_fg += ["aps_90", "aps_150", "aps_220", "rps0", "rps1", "rps2"]
         if use_sptr:
-            self.expected_params_fg +=
+            self.expected_params_fg += []
 
         self.expected_params_nuis = [f"cal_{exp}" for exp in self.experiments]
 
