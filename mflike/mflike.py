@@ -92,27 +92,14 @@ class MFLike(InstallableLikelihood):
         if self.use_sptr: exp.append("sptr")
         if self.use_sptg: exp.append("sptg")
         self.exp = exp
-        print(self.exp)
 
         if self.use_sptr and self.use_sptg:
             raise LoggedError(self.log("Using both Reichardt and George likelihood, please check your yaml file !"))
 
-        self.expected_params_fg = ["a_tSZ", "a_kSZ", "a_c", "xi"] #common parameters only
-
-        if use_acts or use_acte:
-            self.expected_params_fg += ["aps_148", "aps_218", "rpsa"]
-        if use_acts:
-            self.expected_params_fg.append("a_gtt_as")
-        if use_acte:
-            self.expected_params_fg.append("a_gtt_ae")
-        if use_sptg:
-            self.expected_params_fg += ["aps_90", "aps_150", "aps_220", "rps0", "rps1", "rps2"]
-        if use_sptr:
-            self.expected_params_fg += []
-
         self.expected_params_nuis = [f"cal_{exp}" for exp in self.experiments]
 
         self.ThFo = TheoryForge_MFLike(self)
+        self.expected_params_fg =self.ThFo.expected_params_fg
         self.log.info("Initialized!")
 
     def initialize_with_params(self):
@@ -359,31 +346,8 @@ class PlikMFLike(InstallableLikelihood):
     lmax_theory: Optional[int]
 
     def initialize(self):
-        self.expected_params = [
-            # TT parameters
-            'cib_index', 'a_c', 'xi', 'a_tSZ', 'a_kSZ',
-            'gal545_A_100', 'gal545_A_143', 'gal545_A_143_217', 'gal545_A_217',
+        self.expected_params_nuis = ['calib_100T', 'calib_217T', 'calib_100P', 'calib_143P', 'calib_217P', 'A_planck']
 
-            'aps_100_100', 'aps_143_143', 'aps_143_217', 'aps_217_217',
-
-            # TE parameters
-            'galf_TE_index',
-            'galf_TE_A_100', 'galf_TE_A_100_143', 'galf_TE_A_100_217', 'galf_TE_A_143', 'galf_TE_A_143_217',
-            'galf_TE_A_217',
-
-            # EE parameters
-            'galf_EE_index',
-            'galf_EE_A_100', 'galf_EE_A_100_143', 'galf_EE_A_100_217', 'galf_EE_A_143', 'galf_EE_A_143_217',
-            'galf_EE_A_217',
-
-            # calibration parameters
-            'calib_100T', 'calib_217T', 'calib_100P', 'calib_143P', 'calib_217P', 'A_planck',
-
-            # These parameters aren't used, but they are kept for backwards compatibility.
-            # 'A_sbpx_100_100_TT', 'A_sbpx_143_143_TT', 'A_sbpx_143_217_TT', 'A_sbpx_217_217_TT',
-            # 'A_cnoise_e2e_100_100_EE', 'A_cnoise_e2e_100_143_EE', 'A_cnoise_e2e_100_217_EE', 'A_cnoise_e2e_143_143_EE',
-            # 'A_cnoise_e2e_143_217_EE', 'A_cnoise_e2e_217_217_EE'
-        ]
         self.enable_tt = False
         self.enable_te = False
         self.enable_ee = False
@@ -398,8 +362,7 @@ class PlikMFLike(InstallableLikelihood):
         self.prepare_data()
         self.requested_cls = ["tt", "te", "ee"]
         self.ThFo = TheoryForge_PlikMFLike(self)
-        print(f"Fg init: {t_init_end - t_fg_start} s")
-        print(f"Total initilisation: {t_init_end - t_init_start} s")
+        self.expected_params_fg = self.ThFo.expected_params_fg
 
     def prepare_data(self):
         try:
@@ -409,6 +372,7 @@ class PlikMFLike(InstallableLikelihood):
 
         self.lcuts = {k: c[1] for k, c in default_cuts["scales"].items()}
         self.lmax_win = max([self.lcuts[k] for k, _ in default_cuts["scales"].items()]) #TODO fix for different lmax
+        self.l_bpws = np.linspace(2,self.lmax_win, self.shape).astype('int')
         self.nmin = [[1, 1, 1, 1], [1, 1, 60, 1, 60, 60], [1, 1, 60, 1, 60, 60]]
         self.nmax = [[136, 199, 215, 215], [114, 114, 114, 199, 199, 199], [114, 114, 114, 199, 199, 199]]
 
