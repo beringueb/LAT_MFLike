@@ -40,18 +40,18 @@ class MFLike(InstallableLikelihood):
         self.spec_meta = []
 
         # Set path to data
-        if (not getattr(self, "path", None)) and (not getattr(self, packages_path_input, None)):
-            raise LoggedError(
-                self.log,
-                "No path given to MFLike data. Set the likelihood property "
-                f"'path' or the common property '{packages_path_input}'.",
-            )
-        # If no path specified, use the modules path
-        data_file_path = os.path.normpath(
-            getattr(self, "path", None) or os.path.join(self.packages_path, "data")
-        )
-
-        self.data_folder = os.path.join(data_file_path, self.data_folder)
+        # if (not getattr(self, "path", None)) and (not getattr(self, packages_path_input, None)):
+        #     raise LoggedError(
+        #         self.log,
+        #         "No path given to MFLike data. Set the likelihood property "
+        #         f"'path' or the common property '{packages_path_input}'.",
+        #     )
+        # # If no path specified, use the modules path
+        # data_file_path = os.path.normpath(
+        #     getattr(self, "path", None) or os.path.join(self.packages_path, "data")
+        # )
+        #
+        # self.data_folder = os.path.join(data_file_path, self.data_folder)
         if not os.path.exists(self.data_folder):
             raise LoggedError(
                 self.log,
