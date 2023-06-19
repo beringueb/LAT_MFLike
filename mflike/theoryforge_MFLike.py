@@ -234,8 +234,9 @@ class TheoryForge_MFLike:
                 elif val in fg_params:
                     kwargs[key] = fg_params[val]
 
-        search_for_params(param_access)
-        return model.eval(**param_access)
+        modified_params = param_access.copy()
+        search_for_params(modified_params)
+        return model.eval(**modified_params)
 
     # Gets the actual power spectrum of foregrounds given the passed parameters
     def _get_foreground_model(self, ell=None, freqs_order=None, **fg_params):
@@ -527,10 +528,10 @@ class TheoryForge_PlikMFLike:
                     search_for_params(val, base + [key])
                 elif val in fg_params:
                     kwargs[key] = fg_params[val]
-                elif key =='ell':
-                    kwargs[key] = fg_params["ell"]
-        search_for_params(param_access)
-        return model.eval(**param_access)
+
+        modified_params = param_access.copy()
+        search_for_params(modified_params)
+        return model.eval(**modified_params)
 
 
     def get_Planck_foreground(self, fg_params, ell, requested_cls=['tt', 'te', 'ee']):
