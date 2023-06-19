@@ -181,6 +181,8 @@ class TheoryForge_MFLike:
         from fgspectra import cross as fgc
         from fgspectra import frequency as fgf
         from fgspectra import power as fgp
+        import copy
+        self.copy = copy
         self.fgp = fgp
         self.fgc = fgc
         self.fgf = fgf
@@ -234,7 +236,7 @@ class TheoryForge_MFLike:
                 elif val in fg_params:
                     kwargs[key] = fg_params[val]
 
-        modified_params = param_access.copy()
+        modified_params = self.copy.deepcopy(param_access)
         search_for_params(modified_params)
         return model.eval(**modified_params)
 
@@ -475,6 +477,8 @@ class TheoryForge_PlikMFLike:
         from fgspectra import cross as fgc
         from fgspectra import frequency as fgf
         from fgspectra import power as fgp
+        import copy
+        self.copy = copy
         self.fgp = fgp
         self.fgc = fgc
         self.fgf = fgf
@@ -529,7 +533,7 @@ class TheoryForge_PlikMFLike:
                 elif val in fg_params:
                     kwargs[key] = fg_params[val]
 
-        modified_params = param_access.copy()
+        modified_params = self.copy.deepcopy(param_access)
         search_for_params(modified_params)
         return model.eval(**modified_params)
 
