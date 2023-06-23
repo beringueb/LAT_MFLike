@@ -87,101 +87,13 @@ class TheoryForge_MFLike:
 
     # Initializes the foreground model. It sets the SED and reads the templates
 
-    def _construct_fgs(self, component):
-        keys = list(component.keys())
-        sed = getattr(self.fgf, keys[0])()
-        sed_dict = component[keys[0]]
-        cl_dict = component[keys[1]]
-        cl_dict["ell"] = self.l_bpws
-        sed_dict["nu"] = np.fromstring(sed_dict["nu"], dtype=float, sep=',')
-        if keys[0] == "FreeSED":
-            sed_dict["sed"] = np.fromstring(sed_dict["sed"], dtype=float, sep=',')
-        if keys[1] == "PowerSpectrumFromFile":
-            try:
-                template = self.fgp._get_power_file(cl_dict["file"])
-            except ValueError:
-                raise LoggedError(self.log, f"Check if you have template {cl_dict['file']} for {keys[1]}")
-            cl = getattr(self.fgp, keys[1])(template)
-            del cl_dict["file"]
-        elif keys[1][:-3] == "PowerLaw":
-            cl = getattr(self.fgp, keys[1][:-3])()
-        else:
-            cl = getattr(self.fgp, keys[1])()
-        params = component["params"]
-        param_access = {'sed_kwargs': {}, 'cl_kwargs': {}}
-        for key, value in sed_dict.items():
-            if params is None: continue
-            if value in params:
-                param_access['sed_kwargs'][key] = value
-        for key, value in cl_dict.items():
-            if params is None: continue
-            if value in params:
-                param_access['cl_kwargs'][key] = value
-        for key in param_access['sed_kwargs']:
-            del sed_dict[key]
-        for key in param_access['cl_kwargs']:
-            del cl_dict[key]
-        sed.set_defaults(**sed_dict)
-        cl.set_defaults(**cl_dict)
-        model = self.fgc.FactorizedCrossSpectrum(sed, cl)
-        return model, param_access
-
-    def _construct_tszxcib(self, component):
-        sed_keys = list(component.keys())
-
-        sed_list = [getattr(self. fgf, sed_key)() for sed_key in component[sed_keys[0]].keys()]
-
-        sed_dict_keys = list(component[sed_keys[0]].keys())
-        sed_dict_list = [component[sed_keys[0]][sed_dict_key] for sed_dict_key in sed_dict_keys]
-        for d in sed_dict_list:
-            d["nu"] = np.fromstring(d["nu"], dtype=float, sep=',')
-
-        cl_dict_keys = list(component[sed_keys[1]].keys())
-        cl_dict_list = [component[sed_keys[1]][cl_dict_key] for cl_dict_key in cl_dict_keys]
-        cl_list = []
-        for d in cl_dict_list:
-            d["ell"] = self.l_bpws
-
-        for i, cl_key in enumerate(cl_dict_keys):
-            if cl_key[:-4] == "PowerSpectrumFromFile":
-                file = cl_dict_list[i]["file"]
-                try:
-                    template = self.fgp._get_power_file(file)
-                except ValueError:
-                    raise LoggedError(self.log, f"Check if you have template {file} for {cl_key}")
-                cl_list.append(getattr(self.fgp, cl_key[:-4])(template))
-                del cl_dict_list[i]["file"]
-            else:
-                cl_list.append(getattr(self.fgp, cl_key)())
-
-        params = component["params"]
-
-        param_access = {
-            'sed_kwargs': {
-                "kwseq": [
-                    {key: value for key, value in sed_dict.items() if value in params}
-                    for sed_dict in sed_dict_list
-                ]
-            },
-            'cl_kwargs': {
-                "kwseq": [
-                    {key: value for key, value in cl_dict.items() if value in params}
-                    for cl_dict in cl_dict_list
-                ]
-            }
-        }
-
-        model = self.fgc.CorrelatedFactorizedCrossSpectrum(self.fgf.Join(*sed_list), self.fgp.PowerSpectraAndCovariance(*cl_list))
-        model.set_defaults(**{"sed_kwargs": {"kwseq": sed_dict_list}, "cl_kwargs": {"kwseq": cl_dict_list}})
-
-        return model, param_access
-
     def _init_foreground_model(self):
 
         from fgspectra import cross as fgc
         from fgspectra import frequency as fgf
         from fgspectra import power as fgp
         import copy
+        import pickle
         self.copy = copy
         self.fgp = fgp
         self.fgc = fgc
@@ -189,40 +101,51 @@ class TheoryForge_MFLike:
 
         def get_all_params(param_access):
             params = []
-            for value in param_access.values():
-                if isinstance(value, str):
-                    params.append(value)
-                elif isinstance(value, dict):
-                    params.extend(get_all_params(value))
+            for val in param_access.values():
+                if isinstance(val, str):
+                    params.append(val)
+                elif isinstance(val, list):
+                    for v in val:
+                        params.extend(get_all_params(v))
+                elif isinstance(val, dict):
+                    params.extend(get_all_params(val))
+            try:
+                params.remove('ell')
+            except ValueError:
+                pass
+            try:
+                params.remove('ell_clp')
+            except ValueError:
+                pass
             return params
+
         components = {}
         components_list = {}
         expected_params_fg = []
+        with open(self.foregrounds["fg_model"], 'rb') as file:
+            fg_model = pickle.load(file)
         for exp in self.exp:
             for s in self.requested_cls:
-                components_list[s] = []
-                for _, (key, value) in enumerate(self.foregrounds["components"][s][exp].items()):
-                    if key.lower() in ["tszxcibc", "tszxcib", "tsz_and_cibc", "tsz_and cib", "tsz_x_cibc", "tsz_x_cib"]:
-                        model, param_access = self._construct_tszxcib(value)
-                    else:
-                        model, param_access = self._construct_fgs(value)
-                    components[exp, s, key, "model"] = model
-                    components[exp, s, key, "param_access"] = param_access
+                components_list[s] = [] #TODO component_list to depend on exp ? expected params as well ...
+                for _, (key, value) in enumerate(fg_model[exp, s].items()):
+                    components[exp, s, key, "model"] = value['model']
+                    components[exp, s, key, "model"].set_defaults(**value['defaults'])
+                    components[exp, s, key, "param_access"] = value['param_access']
                     components_list[s].append(key)
-                    expected_params_fg.extend(get_all_params(param_access))
+                    expected_params_fg.extend(get_all_params(value['param_access']))
+
         self.fg_component_list = components_list
         self.fgs = components
         self.expected_params_fg = list(set(expected_params_fg))
-        if "tszxcibc" in components_list["tt"]:
+        if "tsz_and_cib" in components_list["tt"]:
             self.expected_params_fg.append("xi")
+            self.expected_params_fg.remove("a_tszxcib")
         print_fgs = 'Will including the following fg components: \n'
         for s in self.requested_cls:
             print_fgs += f"{s} : "
             for c in self.fg_component_list[s]: print_fgs += f"{c}, "
             print_fgs += "\n"
         self.log.info(print_fgs)
-
-
 
     def _evaluate_fgs(self, model, param_access, fg_params):
 
@@ -246,7 +169,8 @@ class TheoryForge_MFLike:
         # useful to make tests at different l_max than the data
         if not hasattr(ell, "__len__"):
             ell = self.l_bpws
-
+        fg_params['ell'] = ell
+        fg_params['ell_clp'] = ell*(ell+1.)
         fg_params["a_tszxcib"] = -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_CIB"])
         model = {}
         for exp in self.exp:
@@ -263,10 +187,10 @@ class TheoryForge_MFLike:
         for exp1 in experiments:
             for exp2 in experiments:
                 if exp1[:4] != exp2[:4]:
-                    exp = "sptg"  #Dodgy ... set all cross correlations between experiemn
+                    exp = "sptg"  # Dodgy ... set all cross correlations between experiemn
                     # ts to irrelevant values
-                    c1=0
-                    c2=0
+                    c1 = 0
+                    c2 = 0
                 else:
                     exp = exp1[:4]
                     c1 = self.freqs[exp].index(int(exp1[5:]))
@@ -274,19 +198,8 @@ class TheoryForge_MFLike:
                 for s in self.requested_cls:
                     fg_dict[s, "all", exp1, exp2] = np.zeros(len(ell))
                     for comp in self.fg_component_list[s]:
-                        if comp == "tszxcibc":
-                            fg_dict[s, "tSZ", exp1, exp2] = model[exp, s, "tsz"][c1, c2]
-                            fg_dict[s, "cibc", exp1, exp2] = model[exp, s, "cibc"][c1, c2]
-                            fg_dict[s, "tSZxCIB", exp1, exp2] = (
-                                model[exp, s, comp][c1, c2]
-                                - model[exp, s, "tsz"][c1, c2]
-                                - model[exp, s, "cibc"][c1, c2]
-                            )
-                            fg_dict[s, "all", exp1, exp2] += model[exp, s, comp][c1, c2]
-                            # fg_dict[s, "all", exp1, exp2] += fg_dict[s, "tSZxCIB", exp1, exp2]
-                        else:
-                            fg_dict[s, comp, exp1, exp2] = model[exp, s, comp][c1, c2]
-                            fg_dict[s, "all", exp1, exp2] += fg_dict[s, comp, exp1, exp2]
+                        fg_dict[s, comp, exp1, exp2] = model[exp, s, comp][c1, c2]
+                        fg_dict[s, "all", exp1, exp2] += fg_dict[s, comp, exp1, exp2]
 
         return fg_dict
 
@@ -323,7 +236,6 @@ class TheoryForge_MFLike:
 
         # rot_pars = [nuis_params[f"alpha_{exp}"] for exp in self.experiments]
         rot_pars = [0. for exp in self.experiments]
-
 
         rot = syl.Rotation_alm(ell=self.l_bpws, spectra=dls_dict)
 
@@ -362,10 +274,11 @@ class TheoryForge_MFLike:
             for i1, exp1 in enumerate(self.experiments):
                 for i2, exp2 in enumerate(self.experiments):
                     dls_dict[cls, exp1, exp2] += (
-                        templ_pars[cls][i1][i2] * self.dltempl_from_file[cls, exp1, exp2]
+                            templ_pars[cls][i1][i2] * self.dltempl_from_file[cls, exp1, exp2]
                     )
 
         return dls_dict
+
 
 class TheoryForge_PlikMFLike:
     def __init__(self, mflike=None):
@@ -380,97 +293,11 @@ class TheoryForge_PlikMFLike:
             self.expected_params_nuis = mflike.expected_params_nuis
             self.defaults_cuts = mflike.defaults
             self.exp = ["planck"]
-            self.l_bpws = mflike.l_bpws
 
             # Initialize foreground model
             self._init_foreground_model()
 
     # Initializes the foreground model. It sets the SED and reads the templates
-
-    def _construct_fgs(self, component):
-        keys = list(component.keys())
-        sed = getattr(self.fgf, keys[0])()
-        sed_dict = component[keys[0]]
-        cl_dict = component[keys[1]]
-        cl_dict["ell"] = self.l_bpws
-        sed_dict["nu"] = np.fromstring(sed_dict["nu"], dtype=float, sep=',')
-        if keys[1] == "PowerSpectrumFromFile":
-            try:
-                template = self.fgp._get_power_file(cl_dict["file"])
-            except ValueError:
-                raise LoggedError(self.log, f"Check if you have template {cl_dict['file']} for {keys[1]}")
-            cl = getattr(self.fgp, keys[1])(template)
-            del cl_dict["file"]
-        elif keys[1][:-3] == "PowerLaw":
-            cl = getattr(self.fgp, keys[1][:-3])()
-        else:
-            cl = getattr(self.fgp, keys[1])()
-        params = component["params"]
-        param_access = {'sed_kwargs': {}, 'cl_kwargs': {}}
-        for key, value in sed_dict.items():
-            if value in params:
-                param_access['sed_kwargs'][key] = value
-        for key, value in cl_dict.items():
-            if value in params:
-                param_access['cl_kwargs'][key] = value
-        for key in param_access['sed_kwargs']:
-            del sed_dict[key]
-        for key in param_access['cl_kwargs']:
-            del cl_dict[key]
-        sed.set_defaults(**sed_dict)
-        cl.set_defaults(**cl_dict)
-        model = self.fgc.FactorizedCrossSpectrum(sed, cl)
-        return model, param_access
-
-    def _construct_tszxcib(self, component):
-        sed_keys = list(component.keys())
-
-        sed_list = [getattr(self. fgf, sed_key)() for sed_key in component[sed_keys[0]].keys()]
-
-        sed_dict_keys = list(component[sed_keys[0]].keys())
-        sed_dict_list = [component[sed_keys[0]][sed_dict_key] for sed_dict_key in sed_dict_keys]
-        for d in sed_dict_list:
-            d["nu"] = np.fromstring(d["nu"], dtype=float, sep=',')
-
-        cl_dict_keys = list(component[sed_keys[1]].keys())
-        cl_dict_list = [component[sed_keys[1]][cl_dict_key] for cl_dict_key in cl_dict_keys]
-        cl_list = []
-        for d in cl_dict_list:
-            d["ell"] = self.l_bpws
-
-        for i, cl_key in enumerate(cl_dict_keys):
-            if cl_key[:-4] == "PowerSpectrumFromFile":
-                file = cl_dict_list[i]["file"]
-                try:
-                    template = self.fgp._get_power_file(file)
-                except ValueError:
-                    raise LoggedError(self.log, f"Check if you have template {file} for {cl_key}")
-                cl_list.append(getattr(self.fgp, cl_key[:-4])(template))
-                del cl_dict_list[i]["file"]
-            else:
-                cl_list.append(getattr(self.fgp, cl_key)())
-
-        params = component["params"]
-
-        param_access = {
-            'sed_kwargs': {
-                "kwseq": [
-                    {key: value for key, value in sed_dict.items() if value in params}
-                    for sed_dict in sed_dict_list
-                ]
-            },
-            'cl_kwargs': {
-                "kwseq": [
-                    {key: value for key, value in cl_dict.items() if value in params}
-                    for cl_dict in cl_dict_list
-                ]
-            }
-        }
-
-        model = self.fgc.CorrelatedFactorizedCrossSpectrum(self.fgf.Join(*sed_list), self.fgp.PowerSpectraAndCovariance(*cl_list))
-        model.set_defaults(**{"sed_kwargs": {"kwseq": sed_dict_list}, "cl_kwargs": {"kwseq": cl_dict_list}})
-
-        return model, param_access
 
     def _init_foreground_model(self):
 
@@ -478,48 +305,63 @@ class TheoryForge_PlikMFLike:
         from fgspectra import frequency as fgf
         from fgspectra import power as fgp
         import copy
+        import pickle
         self.copy = copy
-        self.fgp = fgp
-        self.fgc = fgc
-        self.fgf = fgf
 
         def get_all_params(param_access):
             params = []
-            for value in param_access.values():
-                if isinstance(value, str):
-                    params.append(value)
-                elif isinstance(value, dict):
-                    params.extend(get_all_params(value))
+            for val in param_access.values():
+                if isinstance(val, str):
+                    params.append(val)
+                elif isinstance(val, list):
+                    for v in val:
+                        params.extend(get_all_params(v))
+                elif isinstance(val, dict):
+                    params.extend(get_all_params(val))
+            try:
+                params.remove('ell')
+            except ValueError:
+                pass
+            try:
+                params.remove('ell_clp')
+            except ValueError:
+                pass
             return params
+
         components = {}
         components_list = {}
         expected_params_fg = []
+        with open(self.foregrounds["fg_model"], 'rb') as file:
+            fg_model = pickle.load(file)
         for exp in self.exp:
             for s in self.requested_cls:
                 components_list[s] = []
-                for _, (key, value) in enumerate(self.foregrounds["components"][s][exp].items()):
-                    if key.lower() in ["tszxcibc", "tszxcib", "tsz_and_cibc", "tsz_and cib", "tsz_x_cibc", "tsz_x_cib"]:
-                        model, param_access = self._construct_tszxcib(value)
-                    else:
-                        model, param_access = self._construct_fgs(value)
-                    components[exp, s, key, "model"] = model
-                    components[exp, s, key, "param_access"] = param_access
+                for _, (key, value) in enumerate(fg_model[exp, s].items()):
+                    components[s, key, "model"] = value['model']
+                    components[s, key, "model"].set_defaults(**value['defaults'])
+                    components[s, key, "param_access"] = value['param_access']
                     components_list[s].append(key)
-                    expected_params_fg.extend(get_all_params(param_access))
-        self.fg_component_list = components_list #TODO : Component list to depend on exp as well ?
+                    expected_params_fg.extend(get_all_params(value['param_access']))
+        self.fg_component_list = components_list
         self.fgs = components
         self.expected_params_fg = list(set(expected_params_fg))
-        if "tszxcibc" in components_list["tt"]:
+        if "tsz_and_cib" in components_list["tt"]:
             self.expected_params_fg.append("xi")
-        if "gal_cirrus" in components_list["tt"]:
+            self.expected_params_fg.remove("a_tszxcib")
+        if "galactic" in components_list["tt"]:
             self.expected_params_fg.extend(['gal545_A_100', 'gal545_A_143', 'gal545_A_143_217', 'gal545_A_217'])
-        if "gal_cirrus" in components_list["te"]:
+            self.expected_params_fg.remove("a_gtt_p")
+        if "ps" in components_list["tt"]:
+            self.expected_params_fg.extend(['ps_A_100_100', 'ps_A_143_143', 'ps_A_143_217', 'ps_A_217_217'])
+            self.expected_params_fg.remove("a_ps_p")
+        if "galactic" in components_list["te"]:
             self.expected_params_fg.extend(['galf_TE_A_100', 'galf_TE_A_100_143', 'galf_TE_A_100_217',
                                             'galf_TE_A_143', 'galf_TE_A_143_217', 'galf_TE_A_217'])
-        if "gal_cirrus" in components_list["ee"]:
+            self.expected_params_fg.remove("a_gte_p")
+        if "galactic" in components_list["ee"]:
             self.expected_params_fg.extend(['galf_EE_A_100', 'galf_EE_A_100_143', 'galf_EE_A_100_217',
                                             'galf_EE_A_143', 'galf_EE_A_143_217', 'galf_EE_A_217'])
-
+            self.expected_params_fg.remove("a_gee_p")
 
     def _evaluate_fgs(self, model, param_access, fg_params):
 
@@ -537,21 +379,28 @@ class TheoryForge_PlikMFLike:
         search_for_params(modified_params)
         return model.eval(**modified_params)
 
-
     def get_Planck_foreground(self, fg_params, ell, requested_cls=['tt', 'te', 'ee']):
         frequencies = np.asarray([100, 143, 217], dtype=int)
-
-        if "tszxcibc" in self.fg_component_list["tt"]:
+        fg_params['ell'] = ell
+        fg_params['ell_clp'] = ell*(ell+1.)
+        if "tsz_and_cib" in self.fg_component_list["tt"]:
             fg_params["a_tszxcib"] = -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_CIB"])
-        if "gal_cirrus" in self.fg_component_list["tt"]:
+        if "galactic" in self.fg_component_list["tt"]:
             gal_amp = np.zeros((len(frequencies), len(frequencies)))
             gal_amp[0, 0] = fg_params['gal545_A_100']
             gal_amp[1, 1] = fg_params['gal545_A_143']
             gal_amp[1, 2] = fg_params['gal545_A_143_217']
             gal_amp[2, 1] = fg_params['gal545_A_143_217']
             gal_amp[2, 2] = fg_params['gal545_A_217']
-            fg_params["amp_gal_tt"] = gal_amp
-        if "gal_cirrus" in self.fg_component_list["te"]:
+            fg_params["a_gtt_p"] = gal_amp
+        if "ps" in self.fg_component_list["tt"]:
+            ps_amp = np.zeros((len(frequencies), len(frequencies)))
+            ps_amp[0, 0] = fg_params['ps_A_100_100']
+            ps_amp[1, 1] = fg_params['ps_A_143_143']
+            ps_amp[1, 2] = fg_params['ps_A_143_217']
+            ps_amp[2, 2] = fg_params['ps_A_217_217']
+            fg_params['a_ps_p'] = ps_amp
+        if "galactic" in self.fg_component_list["te"]:
             galte_amp = np.zeros((len(frequencies), len(frequencies)))
             galte_amp[0, 0] = fg_params['galf_TE_A_100']
             galte_amp[0, 1] = fg_params['galf_TE_A_100_143']
@@ -562,8 +411,8 @@ class TheoryForge_PlikMFLike:
             galte_amp[1, 2] = fg_params['galf_TE_A_143_217']
             galte_amp[2, 1] = fg_params['galf_TE_A_143_217']
             galte_amp[2, 2] = fg_params['galf_TE_A_217']
-            fg_params["amp_gal_te"] = galte_amp
-        if "gal_cirrus" in self.fg_component_list["ee"]:
+            fg_params["a_gte_p"] = galte_amp
+        if "galactic" in self.fg_component_list["ee"]:
             galee_amp = np.zeros((len(frequencies), len(frequencies)))
             galee_amp[0, 0] = fg_params['galf_EE_A_100']
             galee_amp[0, 1] = fg_params['galf_EE_A_100_143']
@@ -574,36 +423,24 @@ class TheoryForge_PlikMFLike:
             galee_amp[1, 2] = fg_params['galf_EE_A_143_217']
             galee_amp[2, 1] = fg_params['galf_EE_A_143_217']
             galee_amp[2, 2] = fg_params['galf_EE_A_217']
-            fg_params["amp_gal_ee"] = galee_amp
+            fg_params["a_gee_p"] = galee_amp
 
         model = {}
         for s in self.requested_cls:
             for c in self.fg_component_list[s]:
-                model["planck", s, c] = self._evaluate_fgs(self.fgs["planck", s, c, "model"],
-                                                           self.fgs["planck", s, c, "param_access"], fg_params)
+                model["planck", s, c] = self._evaluate_fgs(self.fgs[s, c, "model"],
+                                                           self.fgs[s, c,  "param_access"], fg_params)
 
         fg_dict = {}
         for idx, (i, j) in enumerate([(0, 0), (1, 1), (1, 2), (2, 2)]):
             f1, f2 = frequencies[i], frequencies[j]
             for comp in self.fg_component_list["tt"]:
-                if comp == "tszxcibc":
-                    fg_dict["tt", "tSZ", f1, f2] = model["planck", "tt", "tsz"][i, j]
-                    fg_dict["tt", "cibc", f1, f2] = model["planck", "tt", "cibc"][i, j]
-                    fg_dict["tt", "tSZxCIB", f1, f2] = (
-                            model["planck", "tt", comp][i, j]
-                            - model["planck", "tt", "tsz"][i, j]
-                            - model["planck", "tt", "cibc"][i, j]
-                    )
-                    # fg_dict["tt", "all", f1, f2] += model["planck", "tt", comp][i, j]
-                    # fg_dict[s, "all", exp1, exp2] += fg_dict[s, "tSZxCIB", exp1, exp2]
-                else:
-                    fg_dict["tt", comp, f1, f2] = model["planck", "tt", comp][i, j]
-                    # fg_dict["tt", "all", f1, f2] += fg_dict["tt", comp, f1, f2]
+                fg_dict["tt", comp, f1, f2] = model["planck", "tt", comp][i, j]
 
         for i, f1 in enumerate(frequencies):
             for j, f2 in enumerate(frequencies):
-                fg_dict['te', 'gal_cirrus', f1, f2] = model['planck', 'te', 'gal_cirrus'][i, j]
-                fg_dict['ee', 'gal_cirrus', f1, f2] = model['planck', 'ee', 'gal_cirrus'][i, j]
+                fg_dict['te', 'galactic', f1, f2] = model['planck', 'te', 'galactic'][i, j]
+                fg_dict['ee', 'galactic', f1, f2] = model['planck', 'ee', 'galactic'][i, j]
 
         for c1, f1 in enumerate(frequencies):
             for c2, f2 in enumerate(frequencies):

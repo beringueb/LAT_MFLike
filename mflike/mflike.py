@@ -372,7 +372,6 @@ class PlikMFLike(InstallableLikelihood):
 
         self.lcuts = {k: c[1] for k, c in default_cuts["scales"].items()}
         self.lmax_win = max([self.lcuts[k] for k, _ in default_cuts["scales"].items()]) #TODO fix for different lmax
-        self.l_bpws = np.linspace(2,self.lmax_win, self.shape).astype('int')
         self.nmin = [[1, 1, 1, 1], [1, 1, 60, 1, 60, 60], [1, 1, 60, 1, 60, 60]]
         self.nmax = [[136, 199, 215, 215], [114, 114, 114, 199, 199, 199], [114, 114, 114, 199, 199, 199]]
 
