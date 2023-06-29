@@ -140,6 +140,11 @@ class TheoryForge_MFLike:
         if "tsz_and_cib" in components_list["tt"]:
             self.expected_params_fg.append("xi")
             self.expected_params_fg.remove("a_tszxcib")
+        if "ps" in components_list["tt"]:
+            self.expected_params_fg.extend(['aps_148', 'aps_218', 'aps90', 'aps_150', 'aps_220',
+                                            'rpsa', 'rps0', 'rps1', 'rps2'])
+            self.expected_params_fg.remove("a_ps_s")
+            self.expected_params_fg.remove("a_ps_a")
         print_fgs = 'Will including the following fg components: \n'
         for s in self.requested_cls:
             print_fgs += f"{s} : "
@@ -172,6 +177,21 @@ class TheoryForge_MFLike:
         fg_params['ell'] = ell
         fg_params['ell_clp'] = ell*(ell+1.)
         fg_params["a_tszxcib"] = -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_CIB"])
+        poisson_amp_spt = np.array([[fg_params["aps_90"],
+                                 fg_params["rps0"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_150"]),
+                                 fg_params["rps1"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_220"])],
+                                [fg_params["rps0"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_150"]),
+                                 fg_params["aps_150"],
+                                 fg_params["rps2"] * np.sqrt(fg_params["aps_220"] * fg_params["aps_150"])],
+                                [fg_params["rps1"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_220"]),
+                                 fg_params["rps2"] * np.sqrt(fg_params["aps_220"] * fg_params["aps_150"]),
+                                 fg_params["aps_220"]]])
+        poisson_amp_act = np.array(
+            [[fg_params["aps_148"], np.sqrt(fg_params["aps_148"] * fg_params["aps_218"]) * fg_params["rpsa"]],
+             [np.sqrt(fg_params["aps_148"] * fg_params["aps_218"]) * fg_params["rpsa"], fg_params["aps_218"]]])
+
+        fg_params['a_ps_s'] = poisson_amp_spt
+        fg_params['a_ps_a'] = poisson_amp_act
         model = {}
         for exp in self.exp:
             for s in self.requested_cls:
