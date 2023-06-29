@@ -141,7 +141,7 @@ class TheoryForge_MFLike:
             self.expected_params_fg.append("xi")
             self.expected_params_fg.remove("a_tszxcib")
         if "ps" in components_list["tt"]:
-            self.expected_params_fg.extend(['aps_148', 'aps_218', 'aps90', 'aps_150', 'aps_220',
+            self.expected_params_fg.extend(['aps_148', 'aps_218', 'aps_90', 'aps_150', 'aps_220',
                                             'rpsa', 'rps0', 'rps1', 'rps2'])
             self.expected_params_fg.remove("a_ps_s")
             self.expected_params_fg.remove("a_ps_a")
