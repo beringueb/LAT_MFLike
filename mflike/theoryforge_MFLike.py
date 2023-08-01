@@ -145,7 +145,7 @@ class TheoryForge_MFLike:
                                             'rpsa', 'rps0', 'rps1', 'rps2'])
             self.expected_params_fg.remove("a_ps_s")
             self.expected_params_fg.remove("a_ps_a")
-        print_fgs = 'Will including the following fg components: \n'
+        print_fgs = 'Will be including the following fg components for highL likelihood: \n'
         for s in self.requested_cls:
             print_fgs += f"{s} : "
             for c in self.fg_component_list[s]: print_fgs += f"{c}, "
@@ -368,6 +368,9 @@ class TheoryForge_PlikMFLike:
         if "tsz_and_cib" in components_list["tt"]:
             self.expected_params_fg.append("xi")
             self.expected_params_fg.remove("a_tszxcib")
+        if "tszxcib" in components_list["tt"]:
+            self.expected_params_fg.append("xi")
+            self.expected_params_fg.remove("a_tszxcib")
         if "galactic" in components_list["tt"]:
             self.expected_params_fg.extend(['gal545_A_100', 'gal545_A_143', 'gal545_A_143_217', 'gal545_A_217'])
             self.expected_params_fg.remove("a_gtt_p")
@@ -382,6 +385,12 @@ class TheoryForge_PlikMFLike:
             self.expected_params_fg.extend(['galf_EE_A_100', 'galf_EE_A_100_143', 'galf_EE_A_100_217',
                                             'galf_EE_A_143', 'galf_EE_A_143_217', 'galf_EE_A_217'])
             self.expected_params_fg.remove("a_gee_p")
+        print_fgs = 'Will be including the following fg components for highL likelihood: \n'
+        for s in self.requested_cls:
+            print_fgs += f"{s} : "
+            for c in self.fg_component_list[s]: print_fgs += f"{c}, "
+            print_fgs += "\n"
+        self.log.info(print_fgs)
 
     def _evaluate_fgs(self, model, param_access, fg_params):
 
@@ -405,6 +414,16 @@ class TheoryForge_PlikMFLike:
         fg_params['ell_clp'] = ell*(ell+1.)
         if "tsz_and_cib" in self.fg_component_list["tt"]:
             fg_params["a_tszxcib"] = -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_CIB"])
+        if "tszxcib" in self.fg_component_list["tt"]:
+            tSZcorr = np.array([2.022, 0.95, 0.0000476])
+            CIBcorr = np.array([0.0, 0.094, 1.0])
+            szcib_amp = np.zeros((len(frequencies), len(frequencies)))
+            szcib_amp[0, 0] = -2.0 * fg_params['xi'] * np.sqrt(fg_params['a_tSZ'] * tSZcorr[0] * fg_params['a_c'] * CIBcorr[0])
+            szcib_amp[1, 1] = -2.0 * fg_params['xi'] * np.sqrt( fg_params['a_tSZ'] * tSZcorr[1] * fg_params['a_c'] * CIBcorr[1])
+            szcib_amp[1, 2] = -fg_params['xi'] * np.sqrt(fg_params['a_tSZ'] * tSZcorr[1] * fg_params['a_c'] * CIBcorr[2]) - \
+                              fg_params['xi'] * np.sqrt(fg_params['a_tSZ'] * tSZcorr[2] * fg_params['a_c'] * CIBcorr[1])
+            szcib_amp[2, 2] = -2.0 * fg_params['xi'] * np.sqrt(fg_params['a_tSZ'] * tSZcorr[2] * fg_params['a_c'] * CIBcorr[2])
+            fg_params["a_tszxcib"] = szcib_amp
         if "galactic" in self.fg_component_list["tt"]:
             gal_amp = np.zeros((len(frequencies), len(frequencies)))
             gal_amp[0, 0] = fg_params['gal545_A_100']
