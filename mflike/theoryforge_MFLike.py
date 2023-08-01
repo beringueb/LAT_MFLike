@@ -418,11 +418,11 @@ class TheoryForge_PlikMFLike:
             tSZcorr = np.array([2.022, 0.95, 0.0000476])
             CIBcorr = np.array([0.0, 0.094, 1.0])
             szcib_amp = np.zeros((len(frequencies), len(frequencies)))
-            szcib_amp[0, 0] = -2.0 * fg_params['xi'] * np.sqrt(fg_params['a_tSZ'] * tSZcorr[0] * fg_params['a_c'] * CIBcorr[0])
-            szcib_amp[1, 1] = -2.0 * fg_params['xi'] * np.sqrt( fg_params['a_tSZ'] * tSZcorr[1] * fg_params['a_c'] * CIBcorr[1])
-            szcib_amp[1, 2] = -fg_params['xi'] * np.sqrt(fg_params['a_tSZ'] * tSZcorr[1] * fg_params['a_c'] * CIBcorr[2]) - \
-                              fg_params['xi'] * np.sqrt(fg_params['a_tSZ'] * tSZcorr[2] * fg_params['a_c'] * CIBcorr[1])
-            szcib_amp[2, 2] = -2.0 * fg_params['xi'] * np.sqrt(fg_params['a_tSZ'] * tSZcorr[2] * fg_params['a_c'] * CIBcorr[2])
+            szcib_amp[0, 0] = -2.0 * fg_params['xi'] * np.sqrt(fg_params['a_tSZ'] * tSZcorr[0] * fg_params['a_CIB'] * CIBcorr[0])
+            szcib_amp[1, 1] = -2.0 * fg_params['xi'] * np.sqrt( fg_params['a_tSZ'] * tSZcorr[1] * fg_params['a_CIB'] * CIBcorr[1])
+            szcib_amp[1, 2] = -fg_params['xi'] * np.sqrt(fg_params['a_tSZ'] * tSZcorr[1] * fg_params['a_CIB'] * CIBcorr[2]) - \
+                              fg_params['xi'] * np.sqrt(fg_params['a_tSZ'] * tSZcorr[2] * fg_params['a_CIB'] * CIBcorr[1])
+            szcib_amp[2, 2] = -2.0 * fg_params['xi'] * np.sqrt(fg_params['a_tSZ'] * tSZcorr[2] * fg_params['a_CIB'] * CIBcorr[2])
             fg_params["a_tszxcib"] = szcib_amp
         if "galactic" in self.fg_component_list["tt"]:
             gal_amp = np.zeros((len(frequencies), len(frequencies)))
