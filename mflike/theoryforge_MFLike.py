@@ -177,7 +177,7 @@ class TheoryForge_MFLike:
         fg_params['ell'] = ell
         fg_params['ell_clp'] = ell*(ell+1.)
         fg_params["a_tszxcib"] = -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_CIB"])
-        if "ps" in components_list["tt"]:
+        if "ps" in self.fg_component_list["tt"]:
             poisson_amp_spt = np.array([[fg_params["aps_90"],
                                     fg_params["rps0"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_150"]),
                                     fg_params["rps1"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_220"])],
