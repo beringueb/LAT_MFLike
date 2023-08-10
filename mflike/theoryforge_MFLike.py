@@ -174,6 +174,7 @@ class TheoryForge_MFLike:
         # useful to make tests at different l_max than the data
         if not hasattr(ell, "__len__"):
             ell = self.l_bpws
+        if ell[0] == 0: ell[0] = 1
         fg_params['ell'] = ell
         fg_params['ell_clp'] = ell*(ell+1.)
         fg_params["a_tszxcib"] = -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_CIB"])
