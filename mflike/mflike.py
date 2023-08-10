@@ -25,6 +25,7 @@ class MFLike(InstallableLikelihood):
 
     # attributes set from .yaml
     input_file: Optional[str]
+    beam_err_file: Optional[str]
     cov_Bbl_file: Optional[str]
     data: dict
     defaults: dict
@@ -290,6 +291,19 @@ class MFLike(InstallableLikelihood):
         # Put data and covariance in the right order.
         self.data_vec = np.dot(mat_compress, s.mean)
         self.cov = np.dot(mat_compress, s_b.covariance.covmat.dot(mat_compress.T))
+        if bool(set(data["experiments"]) & set(["sptr_90", "sptr_150", "sptr_220"])):
+            try:
+                beam_err_fname = os.path.join(self.data_folder, self.beam_err_file)
+            except AttributeError:
+                raise KeyError("You must provide beam_err file is using SPT Reichardt likelihood !")
+            beam_err = np.fromfile(beam_err_fname, dtype=np.float64).reshape(-1, 88*8 // 8)
+            index_spt = []
+            for m in self.spec_meta:
+                if m["t1"][:4] == 'sptr' or m["t2"][:4] == 'sptr':
+                    index_spt.extend(m["ids"])
+            row_indices_mesh, column_indices_mesh = np.meshgrid(index_spt, index_spt, indexing='ij')
+            beam_err_cov = np.einsum('ij,i,j ->ij', beam_err, self.data_vec[index_spt], self.data_vec[index_spt])
+            self.cov[row_indices_mesh, column_indices_mesh] += beam_err_cov
         self.inv_cov = np.linalg.inv(self.cov)
         self.logp_const = np.log(2 * np.pi) * (-len(self.data_vec) / 2)
         self.logp_const -= 0.5 * np.linalg.slogdet(self.cov)[1]
