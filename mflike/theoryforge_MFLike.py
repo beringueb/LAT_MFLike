@@ -145,6 +145,9 @@ class TheoryForge_MFLike:
                                             'rpsa', 'rps0', 'rps1', 'rps2'])
             self.expected_params_fg.remove("a_ps_s")
             self.expected_params_fg.remove("a_ps_a")
+        if "galactic" in components_list["tt"]:
+            self.expected_params_fg.extend(["a_gtt_spt_95", "a_gtt_spt_150", "a_gtt_spt_220"])
+            self.expected_params_fg.remove("a_gtt_spt")
         print_fgs = 'Will be including the following fg components for highL likelihood: \n'
         for s in self.requested_cls:
             print_fgs += f"{s} : "
@@ -194,6 +197,17 @@ class TheoryForge_MFLike:
 
             fg_params['a_ps_s'] = poisson_amp_spt
             fg_params['a_ps_a'] = poisson_amp_act
+        if "galactic" in self.fg_component_list["tt"]:
+            galactic_spt_amp = np.array([[fg_params["a_gtt_spt_95"],
+                                    np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_150"]),
+                                    np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_220"])],
+                                    [np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_150"]),
+                                     fg_params["a_gtt_spt_150"],
+                                     np.sqrt(fg_params["a_gtt_spt_220"] * fg_params["a_gtt_spt_150"])],
+                                    [np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_220"]),
+                                     np.sqrt(fg_params["a_gtt_spt_220"] * fg_params["a_gtt_spt_150"]),
+                                    fg_params["a_gtt_spt_220"]]])
+            fg_params['a_gtt_spt'] = galactic_spt_amp
         model = {}
         for exp in self.exp:
             for s in self.requested_cls:
