@@ -148,6 +148,9 @@ class TheoryForge_MFLike:
         if "galactic" in components_list["tt"]:
             self.expected_params_fg.extend(["a_gtt_spt_95", "a_gtt_spt_150", "a_gtt_spt_220"])
             self.expected_params_fg.remove("a_gtt_spt")
+        if 'cibp_decor' in components_list["tt"]:
+            self.expected_params_fg.extend(["sigma_p_decor", "a_CIBp"])
+            self.expected_params_fg.remove("a_CIBp_decor")
         print_fgs = 'Will be including the following fg components for highL likelihood: \n'
         for s in self.requested_cls:
             print_fgs += f"{s} : "
@@ -208,6 +211,13 @@ class TheoryForge_MFLike:
                                      np.sqrt(fg_params["a_gtt_spt_220"] * fg_params["a_gtt_spt_150"]),
                                     fg_params["a_gtt_spt_220"]]])
             fg_params['a_gtt_spt'] = galactic_spt_amp
+        if "cibp_decor" in self.fg_component_list["tt"]:
+            decor = np.zeros((3,3))
+            fr = np.array([96.9, 153.4, 221.6])
+            for i in range(3):
+                for j in range(3):
+                    decor[i, j] = fr[i]*fr[j] / 150**2 ** (np.log(fr[i]*fr[j] / 150**2 * fg_params['sigma_p_decor']))
+            fg_params["a_CIBp_decor"] = fg_params["a_CIBp"] * decor
         model = {}
         for exp in self.exp:
             for s in self.requested_cls:
