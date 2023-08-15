@@ -1,8 +1,7 @@
-import os
-from itertools import product
-
 import numpy as np
+import os
 from cobaya.log import LoggedError
+from itertools import product
 
 
 # Converts from cmb units to brightness. Numerical factors not included,
@@ -126,7 +125,7 @@ class TheoryForge_MFLike:
             fg_model = pickle.load(file)
         for exp in self.exp:
             for s in self.requested_cls:
-                components_list[s] = [] #TODO component_list to depend on exp ? expected params as well ...
+                components_list[s] = []  # TODO component_list to depend on exp ? expected params as well ...
                 for _, (key, value) in enumerate(fg_model[exp, s].items()):
                     components[exp, s, key, "model"] = value['model']
                     components[exp, s, key, "model"].set_defaults(**value['defaults'])
@@ -182,41 +181,42 @@ class TheoryForge_MFLike:
             ell = self.l_bpws
         if ell[0] == 0: ell[0] = 1
         fg_params['ell'] = ell
-        fg_params['ell_clp'] = ell*(ell+1.)
+        fg_params['ell_clp'] = ell * (ell + 1.)
         fg_params["a_tszxcib"] = -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_CIB"])
         if "ps" in self.fg_component_list["tt"]:
             poisson_amp_spt = np.array([[fg_params["aps_90"],
-                                    fg_params["rps0"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_150"]),
-                                    fg_params["rps1"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_220"])],
-                                    [fg_params["rps0"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_150"]),
-                                     fg_params["aps_150"],
-                                     fg_params["rps2"] * np.sqrt(fg_params["aps_220"] * fg_params["aps_150"])],
-                                    [fg_params["rps1"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_220"]),
-                                     fg_params["rps2"] * np.sqrt(fg_params["aps_220"] * fg_params["aps_150"]),
-                                    fg_params["aps_220"]]])
+                                         fg_params["rps0"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_150"]),
+                                         fg_params["rps1"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_220"])],
+                                        [fg_params["rps0"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_150"]),
+                                         fg_params["aps_150"],
+                                         fg_params["rps2"] * np.sqrt(fg_params["aps_220"] * fg_params["aps_150"])],
+                                        [fg_params["rps1"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_220"]),
+                                         fg_params["rps2"] * np.sqrt(fg_params["aps_220"] * fg_params["aps_150"]),
+                                         fg_params["aps_220"]]])
             poisson_amp_act = np.array(
                 [[fg_params["aps_148"], np.sqrt(fg_params["aps_148"] * fg_params["aps_218"]) * fg_params["rpsa"]],
-                [np.sqrt(fg_params["aps_148"] * fg_params["aps_218"]) * fg_params["rpsa"], fg_params["aps_218"]]])
+                 [np.sqrt(fg_params["aps_148"] * fg_params["aps_218"]) * fg_params["rpsa"], fg_params["aps_218"]]])
 
             fg_params['a_ps_s'] = poisson_amp_spt
             fg_params['a_ps_a'] = poisson_amp_act
         if "galactic" in self.fg_component_list["tt"]:
             galactic_spt_amp = np.array([[fg_params["a_gtt_spt_95"],
-                                    np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_150"]),
-                                    np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_220"])],
-                                    [np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_150"]),
-                                     fg_params["a_gtt_spt_150"],
-                                     np.sqrt(fg_params["a_gtt_spt_220"] * fg_params["a_gtt_spt_150"])],
-                                    [np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_220"]),
-                                     np.sqrt(fg_params["a_gtt_spt_220"] * fg_params["a_gtt_spt_150"]),
-                                    fg_params["a_gtt_spt_220"]]])
+                                          np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_150"]),
+                                          np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_220"])],
+                                         [np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_150"]),
+                                          fg_params["a_gtt_spt_150"],
+                                          np.sqrt(fg_params["a_gtt_spt_220"] * fg_params["a_gtt_spt_150"])],
+                                         [np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_220"]),
+                                          np.sqrt(fg_params["a_gtt_spt_220"] * fg_params["a_gtt_spt_150"]),
+                                          fg_params["a_gtt_spt_220"]]])
             fg_params['a_gtt_spt'] = galactic_spt_amp
         if "cibp_decor" in self.fg_component_list["tt"]:
-            decor = np.zeros((3,3))
-            fr = np.array([96.9, 153.4, 221.6])
-            for i in range(3):
-                for j in range(3):
-                    decor[i, j] = fr[i]*fr[j] / 150**2 ** (np.log(fr[i]*fr[j] / 150**2 * fg_params['sigma_p_decor']))
+            freqs_spt = np.array([96.9, 153.4, 221.6])
+            decor = np.zeros((len(freqs_spt), len(freqs_spt)))
+            for i in range(len(freqs_spt)):
+                for j in range(len(freqs_spt)):
+                    decor[i, j] = (freqs_spt[i] * freqs_spt[j] / (150 ** 2)) ** (
+                                0.5 * np.log(freqs_spt[i] * freqs_spt[j] / (150 * 150)) * fg_params['sigma_p_decor'])
             fg_params["a_CIBp_decor"] = fg_params["a_CIBp"] * decor
         model = {}
         for exp in self.exp:
@@ -437,18 +437,23 @@ class TheoryForge_PlikMFLike:
     def get_Planck_foreground(self, fg_params, ell, requested_cls=['tt', 'te', 'ee']):
         frequencies = np.asarray([100, 143, 217], dtype=int)
         fg_params['ell'] = ell
-        fg_params['ell_clp'] = ell*(ell+1.)
+        fg_params['ell_clp'] = ell * (ell + 1.)
         if "tsz_and_cib" in self.fg_component_list["tt"]:
             fg_params["a_tszxcib"] = -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_CIB"])
         if "tszxcib" in self.fg_component_list["tt"]:
             tSZcorr = np.array([2.022, 0.95, 0.0000476])
             CIBcorr = np.array([0.0, 0.094, 1.0])
             szcib_amp = np.zeros((len(frequencies), len(frequencies)))
-            szcib_amp[0, 0] = -2.0 * fg_params['xi'] * np.sqrt(fg_params['a_tSZ'] * tSZcorr[0] * fg_params['a_CIB'] * CIBcorr[0])
-            szcib_amp[1, 1] = -2.0 * fg_params['xi'] * np.sqrt( fg_params['a_tSZ'] * tSZcorr[1] * fg_params['a_CIB'] * CIBcorr[1])
-            szcib_amp[1, 2] = -fg_params['xi'] * np.sqrt(fg_params['a_tSZ'] * tSZcorr[1] * fg_params['a_CIB'] * CIBcorr[2]) - \
-                              fg_params['xi'] * np.sqrt(fg_params['a_tSZ'] * tSZcorr[2] * fg_params['a_CIB'] * CIBcorr[1])
-            szcib_amp[2, 2] = -2.0 * fg_params['xi'] * np.sqrt(fg_params['a_tSZ'] * tSZcorr[2] * fg_params['a_CIB'] * CIBcorr[2])
+            szcib_amp[0, 0] = -2.0 * fg_params['xi'] * np.sqrt(
+                fg_params['a_tSZ'] * tSZcorr[0] * fg_params['a_CIB'] * CIBcorr[0])
+            szcib_amp[1, 1] = -2.0 * fg_params['xi'] * np.sqrt(
+                fg_params['a_tSZ'] * tSZcorr[1] * fg_params['a_CIB'] * CIBcorr[1])
+            szcib_amp[1, 2] = -fg_params['xi'] * np.sqrt(
+                fg_params['a_tSZ'] * tSZcorr[1] * fg_params['a_CIB'] * CIBcorr[2]) - \
+                              fg_params['xi'] * np.sqrt(
+                fg_params['a_tSZ'] * tSZcorr[2] * fg_params['a_CIB'] * CIBcorr[1])
+            szcib_amp[2, 2] = -2.0 * fg_params['xi'] * np.sqrt(
+                fg_params['a_tSZ'] * tSZcorr[2] * fg_params['a_CIB'] * CIBcorr[2])
             fg_params["a_tszxcib"] = szcib_amp
         if "galactic" in self.fg_component_list["tt"]:
             gal_amp = np.zeros((len(frequencies), len(frequencies)))
@@ -494,7 +499,7 @@ class TheoryForge_PlikMFLike:
         for s in self.requested_cls:
             for c in self.fg_component_list[s]:
                 model["planck", s, c] = self._evaluate_fgs(self.fgs[s, c, "model"],
-                                                           self.fgs[s, c,  "param_access"], fg_params)
+                                                           self.fgs[s, c, "param_access"], fg_params)
 
         fg_dict = {}
         for idx, (i, j) in enumerate([(0, 0), (1, 1), (1, 2), (2, 2)]):
