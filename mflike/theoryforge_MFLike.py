@@ -233,7 +233,7 @@ class TheoryForge_MFLike:
         for exp1 in experiments:
             for exp2 in experiments:
                 if exp1[:4] != exp2[:4]:
-                    exp = "sptg"  # Dodgy ... set all cross correlations between experiemn
+                    exp = "acte"  # Dodgy ... set all cross correlations between experiemn
                     # ts to irrelevant values
                     c1 = 0
                     c2 = 0
