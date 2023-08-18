@@ -128,11 +128,24 @@ class MFLike(InstallableLikelihood):
     def loglike(self, cl, **params_values_nocosmo):
         ps_vec = self._get_power_spectra(cl, **params_values_nocosmo)
         delta = self.data_vec - ps_vec
-        logp = -0.5 * (delta @ self.inv_cov @ delta)
-        logp += self.logp_const
-        self.log.debug(
-            f"Log-likelihood value computed = {logp} (Χ² = {-2 * (logp - self.logp_const)})"
-        )
+        if self.use_sptr:
+            beam_err_cov = np.einsum('ij,i,j ->ij', self.beam_err, ps_vec[self.index_spt], ps_vec[self.index_spt])
+            cov = self.cov.copy()
+            cov[self.row_indices_mesh_spt, self.column_indices_mesh_spt] += beam_err_cov
+            inv_cov = np.linalg.inv(cov)
+            logp = -0.5 * (delta @ inv_cov @ delta)
+            logp_const = np.log(2 * np.pi) * (-len(self.data_vec) / 2)
+            logp_const -= 0.5 * np.linalg.slogdet(cov)[1]
+            logp += logp_const
+            self.log.debug(
+                f"Log-likelihood value computed = {logp} (Χ² = {-2 * (logp - logp_const)})"
+            )
+        else:
+            logp = -0.5 * (delta @ self.inv_cov @ delta)
+            logp += self.logp_const
+            self.log.debug(
+                f"Log-likelihood value computed = {logp} (Χ² = {-2 * (logp - self.logp_const)})"
+            )
         return logp
 
     def prepare_data(self):
@@ -296,14 +309,13 @@ class MFLike(InstallableLikelihood):
                 beam_err_fname = os.path.join(self.data_folder, self.beam_err_file)
             except AttributeError:
                 raise KeyError("You must provide beam_err file is using SPT Reichardt likelihood !")
-            beam_err = np.fromfile(beam_err_fname, dtype=np.float64).reshape(-1, 88*8 // 8)
-            index_spt = []
+            self.beam_err = np.fromfile(beam_err_fname, dtype=np.float64).reshape(-1, 88*8 // 8)
+            self.index_spt = []
             for m in self.spec_meta:
                 if m["t1"][:4] == 'sptr' or m["t2"][:4] == 'sptr':
-                    index_spt.extend(m["ids"])
-            row_indices_mesh, column_indices_mesh = np.meshgrid(index_spt, index_spt, indexing='ij')
-            beam_err_cov = np.einsum('ij,i,j ->ij', beam_err, self.data_vec[index_spt], self.data_vec[index_spt])
-            self.cov[row_indices_mesh, column_indices_mesh] += beam_err_cov
+                    self.index_spt.extend(m["ids"])
+            self.row_indices_mesh_spt, self.column_indices_mesh_spt = np.meshgrid(
+                self.index_spt, self.index_spt, indexing='ij')
         self.inv_cov = np.linalg.inv(self.cov)
         self.logp_const = np.log(2 * np.pi) * (-len(self.data_vec) / 2)
         self.logp_const -= 0.5 * np.linalg.slogdet(self.cov)[1]

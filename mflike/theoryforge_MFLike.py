@@ -116,6 +116,10 @@ class TheoryForge_MFLike:
                 params.remove('ell_clp')
             except ValueError:
                 pass
+            try:
+                params.remove('ell_sqr')
+            except ValueError:
+                pass
             return params
 
         components = {}
@@ -144,7 +148,7 @@ class TheoryForge_MFLike:
                                             'rpsa', 'rps0', 'rps1', 'rps2'])
             self.expected_params_fg.remove("a_ps_s")
             self.expected_params_fg.remove("a_ps_a")
-        if "galactic" in components_list["tt"]:
+        if "galactic_spt" in components_list["tt"]:
             self.expected_params_fg.extend(["a_gtt_spt_95", "a_gtt_spt_150", "a_gtt_spt_220"])
             self.expected_params_fg.remove("a_gtt_spt")
         if 'cibp_decor' in components_list["tt"]:
@@ -182,6 +186,7 @@ class TheoryForge_MFLike:
         if ell[0] == 0: ell[0] = 1
         fg_params['ell'] = ell
         fg_params['ell_clp'] = ell * (ell + 1.)
+        fg_params['ell_sqr'] = ell * ell
         fg_params["a_tszxcib"] = -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_CIB"])
         if "ps" in self.fg_component_list["tt"]:
             poisson_amp_spt = np.array([[fg_params["aps_90"],
@@ -199,7 +204,7 @@ class TheoryForge_MFLike:
 
             fg_params['a_ps_s'] = poisson_amp_spt
             fg_params['a_ps_a'] = poisson_amp_act
-        if "galactic" in self.fg_component_list["tt"]:
+        if "galactic_spt" in self.fg_component_list["tt"]:
             galactic_spt_amp = np.array([[fg_params["a_gtt_spt_95"],
                                           np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_150"]),
                                           np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_220"])],
