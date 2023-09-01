@@ -132,8 +132,8 @@ class MFLike(InstallableLikelihood):
             beam_err_cov = np.einsum('ij,i,j ->ij', self.beam_err, ps_vec[self.index_spt], ps_vec[self.index_spt])
             cov = self.cov.copy()
             cov[self.row_indices_mesh_spt, self.column_indices_mesh_spt] += beam_err_cov
-            inv_cov = np.linalg.inv(cov)
-            logp = -0.5 * (delta @ inv_cov @ delta)
+            self.inv_cov[self.row_indices_mesh_spt, self.column_indices_mesh_spt] = np.linalg.inv(cov[self.row_indices_mesh_spt, self.column_indices_mesh_spt])
+            logp = -0.5 * (delta @ self.inv_cov @ delta)
             logp_const = np.log(2 * np.pi) * (-len(self.data_vec) / 2)
             logp_const -= 0.5 * np.linalg.slogdet(cov)[1]
             logp += logp_const
