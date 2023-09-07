@@ -85,6 +85,13 @@ class TheoryForge_MFLike:
     ###########################################################################
 
     # Initializes the foreground model. It sets the SED and reads the templates
+    def _check_component_any_exp(self, component, requested_cls):
+        """Check if component in any of the component list for any experiment in self.exp"""
+        res = False
+        for exp in self.exp:
+            if component in self.fg_component_list[exp, requested_cls]:
+                res = True
+        return res
 
     def _init_foreground_model(self):
 
@@ -129,36 +136,34 @@ class TheoryForge_MFLike:
             fg_model = pickle.load(file)
         for exp in self.exp:
             for s in self.requested_cls:
-                components_list[s] = []  # TODO component_list to depend on exp ? expected params as well ...
+                components_list[exp, s] = []  # TODO component_list to depend on exp ? expected params as well ...
                 for _, (key, value) in enumerate(fg_model[exp, s].items()):
                     components[exp, s, key, "model"] = value['model']
                     components[exp, s, key, "model"].set_defaults(**value['defaults'])
                     components[exp, s, key, "param_access"] = value['param_access']
-                    components_list[s].append(key)
+                    components_list[exp, s].append(key)
                     expected_params_fg.extend(get_all_params(value['param_access']))
 
         self.fg_component_list = components_list
         self.fgs = components
         self.expected_params_fg = list(set(expected_params_fg))
-        if "tsz_and_cib" in components_list["tt"]:
+        if self._check_component_any_exp("tsz_and_cib", "tt"):
             self.expected_params_fg.append("xi")
             self.expected_params_fg.remove("a_tszxcib")
-        if "ps" in components_list["tt"]:
-            self.expected_params_fg.extend(['aps_148', 'aps_218', 'aps_90', 'aps_150', 'aps_220',
-                                            'rpsa', 'rps0', 'rps1', 'rps2'])
-            self.expected_params_fg.remove("a_ps_s")
+        if self._check_component_any_exp("poisson_act", "tt"):
+            self.expected_params_fg.extend(['aps_148', 'aps_218', 'rpsa'])
             self.expected_params_fg.remove("a_ps_a")
-        if "galactic_spt" in components_list["tt"]:
-            self.expected_params_fg.extend(["a_gtt_spt_95", "a_gtt_spt_150", "a_gtt_spt_220"])
-            self.expected_params_fg.remove("a_gtt_spt")
-        if 'cibp_decor' in components_list["tt"]:
-            self.expected_params_fg.extend(["sigma_p_decor", "a_CIBp"])
-            self.expected_params_fg.remove("a_CIBp_decor")
+        if self._check_component_any_exp("poisson_spt", "tt"):
+            self.expected_params_fg.extend(['aps_90', 'aps_150', 'aps_220', 'rps0', 'rps1', 'rps2'])
+            self.expected_params_fg.remove("a_ps_s")
         print_fgs = 'Will be including the following fg components for highL likelihood: \n'
-        for s in self.requested_cls:
-            print_fgs += f"{s} : "
-            for c in self.fg_component_list[s]: print_fgs += f"{c}, "
-            print_fgs += "\n"
+        for exp in self.exp:
+            print_fgs += f"{exp} : "
+            for s in self.requested_cls:
+                print_fgs += f"{s} : "
+                for c in self.fg_component_list[exp, s]:
+                    print_fgs += f"{c}, "
+                print_fgs += "\n"
         self.log.info(print_fgs)
 
     def _evaluate_fgs(self, model, param_access, fg_params):
@@ -187,8 +192,9 @@ class TheoryForge_MFLike:
         fg_params['ell'] = ell
         fg_params['ell_clp'] = ell * (ell + 1.)
         fg_params['ell_sqr'] = ell * ell
-        fg_params["a_tszxcib"] = -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_CIB"])
-        if "ps" in self.fg_component_list["tt"]:
+        if self._check_component_any_exp("tsz_and_cib", "tt"):
+            fg_params["a_tszxcib"] = -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_CIB"])
+        if self._check_component_any_exp("poisson_spt", "tt"):
             poisson_amp_spt = np.array([[fg_params["aps_90"],
                                          fg_params["rps0"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_150"]),
                                          fg_params["rps1"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_220"])],
@@ -198,35 +204,16 @@ class TheoryForge_MFLike:
                                         [fg_params["rps1"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_220"]),
                                          fg_params["rps2"] * np.sqrt(fg_params["aps_220"] * fg_params["aps_150"]),
                                          fg_params["aps_220"]]])
+            fg_params['a_ps_s'] = poisson_amp_spt
+        if self._check_component_any_exp("poisson_act", "tt"):
             poisson_amp_act = np.array(
                 [[fg_params["aps_148"], np.sqrt(fg_params["aps_148"] * fg_params["aps_218"]) * fg_params["rpsa"]],
                  [np.sqrt(fg_params["aps_148"] * fg_params["aps_218"]) * fg_params["rpsa"], fg_params["aps_218"]]])
-
-            fg_params['a_ps_s'] = poisson_amp_spt
             fg_params['a_ps_a'] = poisson_amp_act
-        if "galactic_spt" in self.fg_component_list["tt"]:
-            galactic_spt_amp = np.array([[fg_params["a_gtt_spt_95"],
-                                          np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_150"]),
-                                          np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_220"])],
-                                         [np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_150"]),
-                                          fg_params["a_gtt_spt_150"],
-                                          np.sqrt(fg_params["a_gtt_spt_220"] * fg_params["a_gtt_spt_150"])],
-                                         [np.sqrt(fg_params["a_gtt_spt_95"] * fg_params["a_gtt_spt_220"]),
-                                          np.sqrt(fg_params["a_gtt_spt_220"] * fg_params["a_gtt_spt_150"]),
-                                          fg_params["a_gtt_spt_220"]]])
-            fg_params['a_gtt_spt'] = galactic_spt_amp
-        if "cibp_decor" in self.fg_component_list["tt"]:
-            freqs_spt = np.array([96.9, 153.4, 221.6])
-            decor = np.zeros((len(freqs_spt), len(freqs_spt)))
-            for i in range(len(freqs_spt)):
-                for j in range(len(freqs_spt)):
-                    decor[i, j] = (freqs_spt[i] * freqs_spt[j] / (150 ** 2)) ** (
-                                0.5 * np.log(freqs_spt[i] * freqs_spt[j] / (150 * 150)) * fg_params['sigma_p_decor'])
-            fg_params["a_CIBp_decor"] = fg_params["a_CIBp"] * decor
         model = {}
         for exp in self.exp:
             for s in self.requested_cls:
-                for c in self.fg_component_list[s]:
+                for c in self.fg_component_list[exp, s]:
                     model[exp, s, c] = self._evaluate_fgs(self.fgs[exp, s, c, "model"],
                                                           self.fgs[exp, s, c, "param_access"], fg_params)
 
@@ -248,7 +235,7 @@ class TheoryForge_MFLike:
                     c2 = self.freqs[exp].index(int(exp2[5:]))
                 for s in self.requested_cls:
                     fg_dict[s, "all", exp1, exp2] = np.zeros(len(ell))
-                    for comp in self.fg_component_list[s]:
+                    for comp in self.fg_component_list[exp, s]:
                         fg_dict[s, comp, exp1, exp2] = model[exp, s, comp][c1, c2]
                         fg_dict[s, "all", exp1, exp2] += fg_dict[s, comp, exp1, exp2]
 
@@ -396,27 +383,33 @@ class TheoryForge_PlikMFLike:
         self.fg_component_list = components_list
         self.fgs = components
         self.expected_params_fg = list(set(expected_params_fg))
-        if "tsz_and_cib" in components_list["tt"]:
+        if "tt" not in self.requested_cls:
+            self.fg_component_list["tt"] = []
+        if "te" not in self.requested_cls:
+            self.fg_component_list["te"] = []
+        if "ee" not in self.requested_cls:
+            self.fg_component_list["ee"] = []
+        if "tsz_and_cib" in self.fg_component_list["tt"]:
             self.expected_params_fg.append("xi")
             self.expected_params_fg.remove("a_tszxcib")
-        if "tszxcib" in components_list["tt"]:
+        if "tszxcib" in self.fg_component_list["tt"]:
             self.expected_params_fg.append("xi")
             self.expected_params_fg.remove("a_tszxcib")
-        if "galactic" in components_list["tt"]:
+        if "galactic" in self.fg_component_list["tt"]:
             self.expected_params_fg.extend(['gal545_A_100', 'gal545_A_143', 'gal545_A_143_217', 'gal545_A_217'])
             self.expected_params_fg.remove("a_gtt_p")
-        if "ps" in components_list["tt"]:
+        if "ps" in self.fg_component_list["tt"]:
             self.expected_params_fg.extend(['ps_A_100_100', 'ps_A_143_143', 'ps_A_143_217', 'ps_A_217_217'])
             self.expected_params_fg.remove("a_ps_p")
-        if "galactic" in components_list["te"]:
+        if "galactic" in self.fg_component_list["te"]:
             self.expected_params_fg.extend(['galf_TE_A_100', 'galf_TE_A_100_143', 'galf_TE_A_100_217',
                                             'galf_TE_A_143', 'galf_TE_A_143_217', 'galf_TE_A_217'])
             self.expected_params_fg.remove("a_gte_p")
-        if "galactic" in components_list["ee"]:
+        if "galactic" in self.fg_component_list["ee"]:
             self.expected_params_fg.extend(['galf_EE_A_100', 'galf_EE_A_100_143', 'galf_EE_A_100_217',
                                             'galf_EE_A_143', 'galf_EE_A_143_217', 'galf_EE_A_217'])
             self.expected_params_fg.remove("a_gee_p")
-        print_fgs = 'Will be including the following fg components for highL likelihood: \n'
+        print_fgs = 'Will be including the following fg components for plik likelihood: \n'
         for s in self.requested_cls:
             print_fgs += f"{s} : "
             for c in self.fg_component_list[s]: print_fgs += f"{c}, "
@@ -514,8 +507,14 @@ class TheoryForge_PlikMFLike:
 
         for i, f1 in enumerate(frequencies):
             for j, f2 in enumerate(frequencies):
-                fg_dict['te', 'galactic', f1, f2] = model['planck', 'te', 'galactic'][i, j]
-                fg_dict['ee', 'galactic', f1, f2] = model['planck', 'ee', 'galactic'][i, j]
+                if "te" in self.requested_cls:
+                    fg_dict['te', 'galactic', f1, f2] = model['planck', 'te', 'galactic'][i, j]
+                else:
+                    fg_dict['te', 'galactic', f1, f2] = 0.
+                if "ee" in self.requested_cls:
+                    fg_dict['ee', 'galactic', f1, f2] = model['planck', 'ee', 'galactic'][i, j]
+                else:
+                    fg_dict['ee', 'galactic', f1, f2] = 0.
 
         for c1, f1 in enumerate(frequencies):
             for c2, f2 in enumerate(frequencies):

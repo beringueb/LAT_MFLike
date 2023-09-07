@@ -386,7 +386,13 @@ class PlikMFLike(InstallableLikelihood):
             self.enable_ee = True
 
         self.prepare_data()
-        self.requested_cls = ["tt", "te", "ee"]
+        self.requested_cls = []
+        if self.enable_tt:
+            self.requested_cls.append("tt")
+        if self.enable_te:
+            self.requested_cls.append("te")
+        if self.enable_ee:
+            self.requested_cls.append("ee")
         self.ThFo = TheoryForge_PlikMFLike(self)
         self.expected_params_fg = self.ThFo.expected_params_fg
 
