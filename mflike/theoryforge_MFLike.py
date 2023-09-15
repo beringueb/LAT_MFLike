@@ -156,6 +156,9 @@ class TheoryForge_MFLike:
         if self._check_component_any_exp("poisson_spt", "tt"):
             self.expected_params_fg.extend(['aps_90', 'aps_150', 'aps_220', 'rps0', 'rps1', 'rps2'])
             self.expected_params_fg.remove("a_ps_s")
+        if self._check_component_any_exp("tszxcib_spt", "tt"):
+            self.expected_params_fg.append("xi")
+            self.expected_params_fg.remove("a_tszxcib_spt")
         print_fgs = 'Will be including the following fg components for highL likelihood: \n'
         for exp in self.exp:
             print_fgs += f"{exp} : "
@@ -194,6 +197,8 @@ class TheoryForge_MFLike:
         fg_params['ell_sqr'] = ell * ell
         if self._check_component_any_exp("tsz_and_cib", "tt"):
             fg_params["a_tszxcib"] = -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_CIB"])
+        if self._check_component_any_exp("tszxcib_spt", "tt"):
+            fg_params["a_tszxcib_spt"] = -fg_params["xi"]
         if self._check_component_any_exp("poisson_spt", "tt"):
             poisson_amp_spt = np.array([[fg_params["aps_90"],
                                          fg_params["rps0"] * np.sqrt(fg_params["aps_90"] * fg_params["aps_150"]),
