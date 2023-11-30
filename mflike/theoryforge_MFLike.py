@@ -247,11 +247,11 @@ class TheoryForge_MFLike:
             {"ell": ell_clp, "ell_0": ell_0clp, "alpha": 1},
         )
         model["tt", "tSZ"] = fg_params["a_tSZ"] * self.tsz(
-            {"nu": self.bandint_freqs, "nu_0": nu_0},
+            {"nu": self.bandint_freqs, "nu_0": 143.},
             {"ell": ell, "ell_0": ell_0},
         )
         model["tt", "tSZ_planck"] = fg_params["a_tSZ"] * self.tsz_planck(
-            {"nu": self.bandint_freqs, "nu_0": nu_0},
+            {"nu": self.bandint_freqs, "nu_0": 143.},
             {"ell": ell, "ell_0": ell_0},
         )
         model["tt", "cibc"] = fg_params["a_c"] * self.cibc(
@@ -279,7 +279,7 @@ class TheoryForge_MFLike:
         model["tt", "tSZ_and_CIB"] = self.tSZ_and_CIB(
             {
                 "kwseq": (
-                    {"nu": self.bandint_freqs, "nu_0": nu_0},
+                    {"nu": self.bandint_freqs, "nu_0": 143.},
                     {
                         "nu": self.bandint_freqs,
                         "nu_0": nu_0,
@@ -303,7 +303,7 @@ class TheoryForge_MFLike:
         model["tt", "tSZ_and_CIB_planck"] = self.tSZ_and_CIB_planck(
             {
                 "kwseq": (
-                    {"nu": self.bandint_freqs, "nu_0": nu_0},
+                    {"nu": self.bandint_freqs, "nu_0": 143.},
                     {
                         "nu": self.bandint_freqs,
                         "nu_0": nu_0,

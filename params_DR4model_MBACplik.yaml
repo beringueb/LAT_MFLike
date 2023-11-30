@@ -1,0 +1,33 @@
+# Foregrounds parameters fitting the DR4 model to MBAC + plik data.
+# xi is fixed to 0.1 (mean of the prior) as it is unconstrained.
+# beta_p and beta_c are forced to take the same value in the fit.
+# I don't include dust parameters as this will depend on the mask used
+# tSZ is normalized at 143 GHz as this is what was doen in planck, this has been reflected in the fg model
+
+a_tSZ:
+  value: 4.4
+  latex: a_\mathrm{tSZ}^{143}
+a_kSZ:
+  value: 4.2
+  latex: a_\mathrm{kSZ}
+a_c:
+  value: 5.05
+  latex: a_\mathrm{CIB}^{150}
+xi:
+  value: 0.1
+  latex: \xi^\mathrm{tSZ \ times CIB}
+a_p:
+  value: 7.07
+  latex: a_\mathrm{CIB-poisson}^{150}
+a_s:
+  value: 3.08
+  latex: a_\mathrm{radio-poisson}^{150}
+T_d: 9.7
+beta_p:
+  value: 2.17
+  latex: \beta_\mathrm{CIB-poisson}
+beta_c:
+  value: 2.17
+  latex: \beta_\mathrm{CIB-clustered}
+
+
