@@ -16,7 +16,7 @@ setup(
     packages=find_packages(),
     python_requires=">=3.5",
     install_requires=[
-        "fgspectra @ git+https://github.com/simonsobs/fgspectra@act_sz_x_cib#egg=fgspectra",
+        "fgspectra @ git+https://github.com/beringueb/fgspectra@MBAC_planck#egg=fgspectra",
         "syslibrary @ git+https://github.com/simonsobs/syslibrary@master#egg=syslibrary",
         "cobaya>=3.1.0",
         "sacc>=0.4.2",

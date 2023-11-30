@@ -199,12 +199,16 @@ class TheoryForge_MFLike:
         # We don't seem to be using this
         # cirrus = fgc.FactorizedCrossSpectrum(fgf.PowerLaw(), fgp.PowerLaw())
         self.ksz = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(), fgp.kSZ_bat())
+        self.ksz_planck = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(), fgp.kSZ_planck_highL())
         self.cibp = fgc.FactorizedCrossSpectrum(fgf.ModifiedBlackBody(), fgp.PowerLaw())
         self.radio = fgc.FactorizedCrossSpectrum(fgf.PowerLaw(), fgp.PowerLaw())
         self.tsz = fgc.FactorizedCrossSpectrum(fgf.ThermalSZ(), fgp.tSZ_150_bat())
+        self.tsz_planck = fgc.FactorizedCrossSpectrum(fgf.ThermalSZ(), fgp.tSZ_planck_highL())
         self.cibc = fgc.FactorizedCrossSpectrum(fgf.CIB(), fgp.PowerSpectrumFromFile(cibc_file))
+        self.cibc_planck = fgc.FactorizedCrossSpectrum(fgf.CIB(), fgp.CIB_planck_highL())
         self.dust = fgc.FactorizedCrossSpectrum(fgf.ModifiedBlackBody(), fgp.PowerLaw())
         self.tSZ_and_CIB = fgc.SZxCIB_Choi2020()
+        self.tSZ_and_CIB_planck = fgc.SZxCIB_planck_highL()
 
         components = self.foregrounds["components"]
         self.fg_component_list = {s: components[s] for s in self.requested_cls}
@@ -226,6 +230,9 @@ class TheoryForge_MFLike:
         model["tt", "kSZ"] = fg_params["a_kSZ"] * self.ksz(
             {"nu": self.bandint_freqs}, {"ell": ell, "ell_0": ell_0}
         )
+        model["tt", "kSZ_planck"] = fg_params["a_kSZ"] * self.ksz_planck(
+            {"nu": self.bandint_freqs}, {"ell": ell, "ell_0": ell_0}
+        )
         model["tt", "cibp"] = fg_params["a_p"] * self.cibp(
             {
                 "nu": self.bandint_freqs,
@@ -243,7 +250,20 @@ class TheoryForge_MFLike:
             {"nu": self.bandint_freqs, "nu_0": nu_0},
             {"ell": ell, "ell_0": ell_0},
         )
+        model["tt", "tSZ_planck"] = fg_params["a_tSZ"] * self.tsz_planck(
+            {"nu": self.bandint_freqs, "nu_0": nu_0},
+            {"ell": ell, "ell_0": ell_0},
+        )
         model["tt", "cibc"] = fg_params["a_c"] * self.cibc(
+            {
+                "nu": self.bandint_freqs,
+                "nu_0": nu_0,
+                "temp": fg_params["T_d"],
+                "beta": fg_params["beta_c"],
+            },
+            {"ell": ell, "ell_0": ell_0},
+        )
+        model["tt", "cibc_planck"] = fg_params["a_c"] * self.cibc_planck(
             {
                 "nu": self.bandint_freqs,
                 "nu_0": nu_0,
@@ -257,6 +277,30 @@ class TheoryForge_MFLike:
             {"ell": ell, "ell_0": 500.0, "alpha": -0.6},
         )
         model["tt", "tSZ_and_CIB"] = self.tSZ_and_CIB(
+            {
+                "kwseq": (
+                    {"nu": self.bandint_freqs, "nu_0": nu_0},
+                    {
+                        "nu": self.bandint_freqs,
+                        "nu_0": nu_0,
+                        "temp": fg_params["T_d"],
+                        "beta": fg_params["beta_c"],
+                    },
+                )
+            },
+            {
+                "kwseq": (
+                    {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_tSZ"]},
+                    {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
+                    {
+                        "ell": ell,
+                        "ell_0": ell_0,
+                        "amp": -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_c"]),
+                    },
+                )
+            },
+        )
+        model["tt", "tSZ_and_CIB_planck"] = self.tSZ_and_CIB_planck(
             {
                 "kwseq": (
                     {"nu": self.bandint_freqs, "nu_0": nu_0},
@@ -316,6 +360,15 @@ class TheoryForge_MFLike:
                                 model[s, comp][c1, c2]
                                 - model[s, "tSZ"][c1, c2]
                                 - model[s, "cibc"][c1, c2]
+                            )
+                            fg_dict[s, "all", exp1, exp2] += model[s, comp][c1, c2]
+                        elif comp == "tSZ_and_CIB_planck":
+                            fg_dict[s, "tSZ_planck", exp1, exp2] = model[s, "tSZ_planck"][c1, c2]
+                            fg_dict[s, "cibc_planck", exp1, exp2] = model[s, "cibc_planck"][c1, c2]
+                            fg_dict[s, "tSZxCIB_planck", exp1, exp2] = (
+                                model[s, comp][c1, c2]
+                                - model[s, "tSZ_planck"][c1, c2]
+                                - model[s, "cibc_planck"][c1, c2]
                             )
                             fg_dict[s, "all", exp1, exp2] += model[s, comp][c1, c2]
                         else:
