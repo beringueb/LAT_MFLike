@@ -39,6 +39,8 @@ class TheoryForge_MFLike:
                           "acte": [148, 220],
                           "sptg": [90, 150, 220],
                           "sptr": [90, 150, 220],
+                          "dr4d": [90, 150],
+                          "dr4w": [90, 150],
                           }
             self.exp = mflike.exp
 
@@ -230,7 +232,7 @@ class TheoryForge_MFLike:
         for exp1 in experiments:
             for exp2 in experiments:
                 if exp1[:4] != exp2[:4]:
-                    exp = "acte"  # Dodgy ... set all cross correlations between experiemn
+                    exp = exp1[:4]  # Dodgy ... set all cross correlations between experiemn
                     # ts to irrelevant values
                     c1 = 0
                     c2 = 0

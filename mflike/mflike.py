@@ -71,12 +71,19 @@ class MFLike(InstallableLikelihood):
         use_acte = False
         use_sptg = False
         use_sptr = False
+        use_dr4d = False
+        use_dr4w = False
+
 
         for exp in self.experiments:
-            if exp in ["acts_148", "acts_218"]:
+            if exp in ["acts_148", "acts_220"]:
                 use_acts = True
-            if exp in ["acte_148", "acte_218"]:
+            if exp in ["acte_148", "acte_220"]:
                 use_acte = True
+            if exp in ["dr4d_90", "dr4d_150"]:
+                use_dr4d = True
+            if exp in ["dr4w_90", "dr4w_150"]:
+                use_dr4w = True
             if exp in ["sptg_90", "sptg_150", "sptg_220"]:
                 use_sptg = True
             if exp in ["sptr_90", "sptr_150", "sptr_220"]:
@@ -86,12 +93,16 @@ class MFLike(InstallableLikelihood):
         self.use_acte = use_acte
         self.use_sptg = use_sptg
         self.use_sptr = use_sptr
+        self.use_dr4d = use_dr4d
+        self.use_dr4w = use_dr4w
 
         exp = []
         if self.use_acts: exp.append("acts")
         if self.use_acte: exp.append("acte")
         if self.use_sptr: exp.append("sptr")
         if self.use_sptg: exp.append("sptg")
+        if self.use_dr4d: exp.append("dr4d")
+        if self.use_dr4w: exp.append("dr4w")
         self.exp = exp
 
         if self.use_sptr and self.use_sptg:
@@ -224,6 +235,12 @@ class MFLike(InstallableLikelihood):
             elif exp == "sptr":
                 tname_1 = [exp_1[5:] + '_spt']
                 tname_2 = [exp_2[5:] + '_spt']
+            elif exp == "dr4d":
+                tname_1 = [exp_1[5:] + '_dr4_deep']
+                tname_2 = [exp_2[5:] + '_dr4_deep']
+            elif exp == "dr4w":
+                tname_1 = [exp_1[5:] + '_dr4_wide']
+                tname_2 = [exp_2[5:] + '_dr4_wide']
 
             dtype = "cl_00"
             return tname_1, tname_2, dtype
@@ -249,6 +266,7 @@ class MFLike(InstallableLikelihood):
                 len_compressed += ind.size
 
                 self.log.debug(f"{tname_1} {tname_2} {dtype} {ind.shape} {lmin} {lmax}")
+
 
         # Get rid of all the unselected power spectra.
         # Sacc takes care of performing the same cuts in the
@@ -281,6 +299,8 @@ class MFLike(InstallableLikelihood):
                 if self.l_bpws is None:
                     # The assumption here is that bandpower windows
                     # will all be sampled at the same ells.
+                    self.l_bpws = ws.values
+                elif self.l_bpws[-1] < ws.values[-1]:
                     self.l_bpws = ws.values
 
                 for i, j1 in enumerate(ind):
@@ -337,17 +357,17 @@ class MFLike(InstallableLikelihood):
         # Get Cl's from the theory code
         Dls = {}
         for s, _ in self.lcuts.items():
-            dl = np.zeros_like(self.l_bpws)
+            dl = np.zeros(self.l_bpws.shape)
             dl[:self.lmax_theory+1] = cl[s][:self.lmax_theory+1]
             Dls[s] = dl
-        # Dls = {s: cl[s][self.l_bpws] for s, _ in self.lcuts.items()}
         DlsObs = self.ThFo.get_modified_theory(Dls, **params_values_nocosmo)
         ps_vec = np.zeros_like(self.data_vec)
+        todls = self.l_bpws*(self.l_bpws+1)/2./np.pi
         for m in self.spec_meta:
             p = m["pol"]
             i = m["ids"]
             w = m["bpw"].weight.T
-            clt = w @ DlsObs[p, m["t1"], m["t2"]]
+            clt = w @ (DlsObs[p, m["t1"], m["t2"]]/todls)
             ps_vec[i] = clt
 
         return ps_vec
