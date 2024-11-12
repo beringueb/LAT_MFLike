@@ -216,7 +216,7 @@ class Foreground(Theory):
 
             # We don't seem to be using this
             # cirrus = fgc.FactorizedCrossSpectrum(fgf.PowerLaw(), fgp.PowerLaw())
-            self.ksz = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(),gp.PowerLawRescaledTemplate(ksz_file))
+            self.ksz = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(),fgp.PowerLawRescaledTemplate(ksz_file))
             self.cibp = fgc.FactorizedCrossSpectrum(fgf.ModifiedBlackBody(), fgp.PowerLaw())
             self.tsz = fgc.FactorizedCrossSpectrum(fgf.ThermalSZ(), fgp.PowerLawRescaledTemplate(tsz_file))
             self.cibc = fgc.FactorizedCrossSpectrum(fgf.CIB(), fgp.PowerLawExtendedTemplate(cibc_file))
