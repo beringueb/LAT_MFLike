@@ -208,32 +208,53 @@ class Foreground(Theory):
 
         if 'tt' in self.requested_cls:
             tsz_file = os.path.join(template_path, "cl_tsz_150_bat.dat")
+            ksz_file = os.path.join(template_path, "cl_ksz_bat.dat")
             cibc_file = os.path.join(template_path, "cl_cib_Choi2020.dat")
             cibxtsz_file = os.path.join(template_path, "cl_sz_x_cib.dat")
+            cibxradio_file = os.path.join(template_path, "cl_cib_x_radio.dat")
+            radioxtsz_file = os.path.join(template_path, "cl_sz_x_radio.dat")
 
             # We don't seem to be using this
             # cirrus = fgc.FactorizedCrossSpectrum(fgf.PowerLaw(), fgp.PowerLaw())
-            self.ksz = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(), fgp.kSZ_bat())
+            self.ksz = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(),gp.PowerLawRescaledTemplate(ksz_file))
             self.cibp = fgc.FactorizedCrossSpectrum(fgf.ModifiedBlackBody(), fgp.PowerLaw())
             self.tsz = fgc.FactorizedCrossSpectrum(fgf.ThermalSZ(), fgp.PowerLawRescaledTemplate(tsz_file))
-            self.cibc = fgc.FactorizedCrossSpectrum(fgf.CIB(), fgp.PowerSpectrumFromFile(cibc_file))
+            self.cibc = fgc.FactorizedCrossSpectrum(fgf.CIB(), fgp.PowerLawExtendedTemplate(cibc_file))
 
             tsz_cib_sed = fgf.Join(fgf.ThermalSZ(), fgf.CIB())
+            tsz_radio_sed = fgf.Join(fgf.ThermalSZ(), fgf.PowerLaw())
+            radio_cib_sed = fgf.Join(fgf.CIB(), fgf.PowerLaw())
+
             tsz_cib_power_spectra = [
                 fgp.PowerLawRescaledTemplate(tsz_file),
-                fgp.PowerSpectrumFromFile(cibc_file),
+                fgp.PowerLawExtendedTemplate(cibc_file),
                 fgp.PowerSpectrumFromFile(cibxtsz_file)
             ]
+
+            tsz_radio_power_spectra = [
+                fgp.PowerLawRescaledTemplate(tsz_file),
+                fgp.PowerLaw(),
+                fgp.PowerSpectrumFromFile(radioxtsz_file)
+            ]
+
+            radio_cib_power_spectra = [
+                fgp.PowerLaw(),
+                fgp.PowerLawExtendedTemplate(cibc_file),
+                fgp.PowerSpectrumFromFile(cibxradio_file)
+            ]
             tsz_cib_cl = fgp.PowerSpectraAndCovariance(*tsz_cib_power_spectra)
+            tsz_radio_cl = fgp.PowerSpectraAndCovariance(*tsz_radio_power_spectra)
+            radio_cib_cl = fgp.PowerSpectraAndCovariance(*radio_cib_power_spectra)
 
             self.tSZ_and_CIB = fgc.CorrelatedFactorizedCrossSpectrum(tsz_cib_sed, tsz_cib_cl)
+            self.tSZ_and_radio = fgc.CorrelatedFactorizedCrossSpectrum(tsz_radio_sed, tsz_radio_cl)
+            self.radio_and_CIB = fgc.CorrelatedFactorizedCrossSpectrum(radio_cib_sed, radio_cib_cl)
 
         if 'te' in self.requested_cls:
             self.radioTE = fgc.FactorizedCrossSpectrumTE(fgf.PowerLaw(), fgf.PowerLaw(), fgp.PowerLaw())
             self.dustTE = fgc.FactorizedCrossSpectrumTE(
                 fgf.ModifiedBlackBody(), fgf.ModifiedBlackBody(), fgp.PowerLaw()
             )
-
 
         self.radio = fgc.FactorizedCrossSpectrum(fgf.PowerLaw(), fgp.PowerLaw())
         self.dust = fgc.FactorizedCrossSpectrum(fgf.ModifiedBlackBody(), fgp.PowerLaw())
@@ -268,7 +289,7 @@ class Foreground(Theory):
         model = {}
         if "tt" in self.requested_cls:
             model["tt", "kSZ"] = fg_params["a_kSZ"] * self.ksz(
-                {"nu": self.bandint_freqs_T}, {"ell": ell, "ell_0": ell_0}
+                {"nu": self.bandint_freqs_T}, {"ell": ell, "ell_0": ell_0, "alpha": fg_params["alpha_kSZ"]}
             )
             model["tt", "cibp"] = fg_params["a_p"] * self.cibp(
                 {
@@ -294,7 +315,7 @@ class Foreground(Theory):
                     "temp": fg_params["T_d"],
                     "beta": fg_params["beta_c"],
                 },
-                {"ell": ell, "ell_0": ell_0},
+                {"ell": ell, "ell_0": ell_0, "alpha": fg_params["alpha_c"]},
             )
             model["tt", "dust"] = fg_params["a_gtt"] * self.dust(
                 {
@@ -304,6 +325,54 @@ class Foreground(Theory):
                     "beta": fg_params["beta_d"],
                 },
                 {"ell": ell, "ell_0": 500.0, "alpha": fg_params["alpha_dT"]},
+            )
+            model["tt", "radio_and_CIB"] = self.radio_and_CIB(
+                {
+                    "kwseq": (
+                       {"nu": self.bandint_freqs_T, "nu_0": nu_0, "beta": fg_params["beta_s"]},
+                        {
+                            "nu": self.bandint_freqs_T,
+                            "nu_0": nu_0,
+                            "temp": fg_params["T_d"],
+                            "beta": fg_params["beta_c"],
+                        },
+                    )
+                },
+                {
+                    "kwseq": (
+                        {"ell": ell_clp, "ell_0": ell_0clp, "alpha": fg_params["alpha_s"]},
+                        {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"], "alpha": fg_params["alpha_c"]},
+                        {
+                            "ell": ell,
+                            "ell_0": ell_0,
+                            "amp": fg_params["xi_cs"] * np.sqrt(fg_params["a_s"] * fg_params["a_c"]),
+                        },
+                    )
+                },
+            )
+            model["tt", "tSZ_and_radio"] = self.tSZ_and_radio(
+                {
+                    "kwseq": (
+                        {"nu": self.bandint_freqs_T, "nu_0": nu_0},
+                        {"nu": self.bandint_freqs_T, "nu_0": nu_0, "beta": fg_params["beta_s"]},
+                    )
+                },
+                {
+                    "kwseq": (
+                        {
+                            "ell": ell,
+                            "ell_0": ell_0,
+                            "amp": fg_params["a_tSZ"],
+                            "alpha": fg_params["alpha_tSZ"]
+                        },
+                        {"ell": ell_clp, "ell_0": ell_0clp, "alpha": fg_params["alpha_s"]},
+                        {
+                            "ell": ell,
+                            "ell_0": ell_0,
+                            "amp": -fg_params["xi_ys"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_s"]),
+                        },
+                    )
+                },
             )
             model["tt", "tSZ_and_CIB"] = self.tSZ_and_CIB(
                 {
@@ -325,16 +394,15 @@ class Foreground(Theory):
                             "amp": fg_params["a_tSZ"],
                             "alpha": fg_params["alpha_tSZ"]
                         },
-                        {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"]},
+                        {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"], "alpha": fg_params["alpha_c"]},
                         {
                             "ell": ell,
                             "ell_0": ell_0,
-                            "amp": -fg_params["xi"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_c"]),
+                            "amp": -fg_params["xi_yc"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_c"]),
                         },
                     )
                 },
             )
-
         if "ee" in self.requested_cls:
             model["ee", "radio"] = fg_params["a_psee"] * self.radio(
                 {"nu": self.bandint_freqs_P, "nu_0": nu_0, "beta": fg_params["beta_s"]},
@@ -411,6 +479,16 @@ class Foreground(Theory):
                             fg_dict[s, "tSZxCIB", exp1, exp2] = (
                                     term - model[s, "tSZ"][c1, c2] - model[s, "cibc"][c1, c2]
                             )
+                        elif comp == "tSZ_and_radio":
+                            fg_dict[s, "tSZxradio", exp1, exp2] = (
+                                    term - model[s, "tSZ"][c1, c2] - model[s, "radio"][c1, c2]
+                            )
+                            term = fg_dict[s, "tSZxradio", exp1, exp2] # remove tSZ and radio from term so the tSZ and radio components are not included twice
+                        elif comp == "radio_and_CIB":
+                            fg_dict[s, "radioxCIB", exp1, exp2] = (
+                                    term - model[s, "cibc"][c1, c2] - model[s, "radio"][c1, c2]
+                            )
+                            term = fg_dict[s, "radioxCIB", exp1, exp2] # remove CIB and radio from term so the CIB and radio components are not included twice
                         else:
                             fg_dict[s, comp, exp1, exp2] = term
                         sum_all += term
