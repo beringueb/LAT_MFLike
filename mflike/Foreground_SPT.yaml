@@ -1,0 +1,44 @@
+requested_cls: ["tt"]
+lmin: 2
+lmax: 6001
+# ells set automatically from above if not set directly
+ells:
+experiments: ["LAT_93", "LAT_145", "LAT_225"]
+bandint_freqs: [93.0, 145.0, 225.0]
+top_hat_band:
+
+normalisation:
+  nu_0: 150.0
+  ell_0: 3000
+  T_CMB: 2.725
+
+components:
+  tt:
+    # - kSZ
+    # - tSZ_and_CIB
+    # - cibp
+    # - dust
+    # - radio
+    - kSZ
+    - tSZ
+    - tSZxCIB
+    - cibp
+    - dust
+    - radio
+    - cibc_2H
+    - cibc_1H
+
+# parameters that are always used
+params:
+  beta_s: #beta radio
+    value: -2.5
+    latex: \beta_s
+  alpha_s: #alpha radio
+    value: 1.0
+    latex: \alpha_s
+  T_effd: #effective galactic dust temperature
+    value: 19.6
+    latex: T_{\mathrm{dust},\mathrm{eff}}
+  beta_d: #beta galactic dust
+    value: 1.5
+    latex: \beta_\mathrm{dust}

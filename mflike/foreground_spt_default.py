@@ -267,7 +267,7 @@ class Foreground(Theory):
             tsz_file = os.path.join(template_path, "cl_tsz_150_bat.dat")
             ksz_file = os.path.join(template_path, "cl_ksz_bat_full.dat")
             cibc_file = os.path.join(template_path, "cl_cib_Choi2020.dat")
-            cibxtsz_file = os.path.join(template_path, "cl_sz_x_cib.dat") 
+            cibxtsz_file = os.path.join(template_path, "cl_sz_x_cib_agora.dat") 
             cibxradio_file = os.path.join(template_path, "cl_cib_x_radio.dat")
             radioxtsz_file = os.path.join(template_path, "cl_sz_x_radio.dat")
 
@@ -1051,46 +1051,47 @@ class Foreground_SPT(Theory):
         self.fg_ell_0 = self.normalisation["ell_0"]
 
         if 'tt' in self.requested_cls:
-            tsz_file = os.path.join(template_path, "cl_tsz_150_bat_spline_extended.dat")
-            ksz_file = os.path.join(template_path, "cl_ksz_bat_full_spline_extended.dat")
-            cibc_file = os.path.join(template_path, "cl_cib_Choi2020_spline_extended.dat")
-            cibxtsz_file = os.path.join(template_path, "cl_sz_x_cib_spline_extended.dat") 
-            # tsz_file = "/home/c.spxbb1/projects/0623_reichardt_mflike/likelihood_fortran/ptsrc/dl_shaw_tsz_s10_153ghz_norm1_fake25000.txt"
-            # ksz_file = "/home/c.spxbb1/projects/0623_reichardt_mflike/likelihood_fortran/ptsrc/dl_ksz_CSFplusPATCHY_13sep2011_norm1_fake25000.txt"
-            # cibc_1H_file = "/home/c.spxbb1/projects/0623_reichardt_mflike/likelihood_fortran/ptsrc/dl_cib_1halo_norm1_25000.txt"
-            # cibc_2H_file = "/home/c.spxbb1/projects/0623_reichardt_mflike/likelihood_fortran/ptsrc/dl_cib_2halo_norm1_25000.txt"
+            # tsz_file = os.path.join(template_path, "cl_tsz_150_bat_spline_extended.dat")
+            # ksz_file = os.path.join(template_path, "cl_ksz_bat_full_spline_extended.dat")
+            # cibc_file = os.path.join(template_path, "cl_cib_Choi2020_spline_extended.dat")
+            # cibxtsz_file = os.path.join(template_path, "cl_sz_x_cib_spline_extended.dat") 
+            tsz_file = "/home/c.spxbb1/projects/0623_reichardt_mflike/likelihood_fortran/ptsrc/dl_shaw_tsz_s10_153ghz_norm1_fake25000.txt"
+            ksz_file = "/home/c.spxbb1/projects/0623_reichardt_mflike/likelihood_fortran/ptsrc/dl_ksz_CSFplusPATCHY_13sep2011_norm1_fake25000.txt"
+            cibc_1H_file = "/home/c.spxbb1/projects/0623_reichardt_mflike/likelihood_fortran/ptsrc/dl_cib_1halo_norm1_25000.txt"
+            cibc_2H_file = "/home/c.spxbb1/projects/0623_reichardt_mflike/likelihood_fortran/ptsrc/dl_cib_2halo_norm1_25000.txt"
 
             # We don't seem to be using this
-            self.ksz = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(),fgp.PowerLawRescaledTemplate(ksz_file))
-            self.cibp = fgc.FactorizedCrossSpectrum(fgf.ModifiedBlackBody(), fgp.PowerLaw())
-            self.tsz = fgc.FactorizedCrossSpectrum(fgf.ThermalSZ(), fgp.PowerLawRescaledTemplate(tsz_file))
-            self.cibc = fgc.FactorizedCrossSpectrum(fgf.CIB(), fgp.PowerLawExtendedTemplate(cibc_file))
-            self.radio = fgc.FactorizedCrossSpectrum(fgf.PowerLaw(), fgp.PowerLaw())
-            self.dust = fgc.FactorizedCrossSpectrum(fgf.ModifiedBlackBody(), fgp.PowerLaw())
+            # self.ksz = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(),fgp.PowerLawRescaledTemplate(ksz_file))
+            # self.cibp = fgc.FactorizedCrossSpectrum(fgf.ModifiedBlackBody(), fgp.PowerLaw())
+            # self.tsz = fgc.FactorizedCrossSpectrum(fgf.ThermalSZ(), fgp.PowerLawRescaledTemplate(tsz_file))
+            # self.cibc = fgc.FactorizedCrossSpectrum(fgf.CIB(), fgp.PowerLawExtendedTemplate(cibc_file))
+            # self.radio = fgc.FactorizedCrossSpectrum(fgf.PowerLaw(), fgp.PowerLaw())
+            # self.dust = fgc.FactorizedCrossSpectrum(fgf.ModifiedBlackBody(), fgp.PowerLaw())
 
             
-        #     self.ksz = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(),fgp.PowerSpectrumFromFile(ksz_file))
-        #     self.cibp = fgc.FactorizedCrossSpectrum(fgf.ModifiedBlackBody(), fgp.PowerLaw())
-        #     self.tsz = fgc.FactorizedCrossSpectrum(fgf.ThermalSZ(), fgp.PowerSpectrumFromFile(tsz_file))
-        #     self.cibc_1H = fgc.FactorizedCrossSpectrum(fgf.CIB(), fgp.PowerSpectrumFromFile(cibc_1H_file))
-        #     self.cibc_2H = fgc.FactorizedCrossSpectrum(fgf.CIB(), fgp.PowerSpectrumFromFile(cibc_2H_file))
-        #     self.radio = fgc.FactorizedCrossSpectrum(fgf.PowerLaw(), fgp.PowerLaw())
+            self.ksz = fgc.FactorizedCrossSpectrum(fgf.ConstantSED(),fgp.PowerSpectrumFromFile(ksz_file))
+            self.cibp = fgc.FactorizedCrossSpectrum(fgf.ModifiedBlackBody(), fgp.PowerLaw())
+            self.tsz = fgc.FactorizedCrossSpectrum(fgf.ThermalSZ(), fgp.PowerSpectrumFromFile(tsz_file))
+            self.cibc_1H = fgc.FactorizedCrossSpectrum(fgf.CIB(), fgp.PowerSpectrumFromFile(cibc_1H_file))
+            self.cibc_2H = fgc.FactorizedCrossSpectrum(fgf.CIB(), fgp.PowerSpectrumFromFile(cibc_2H_file))
+            self.radio = fgc.FactorizedCrossSpectrum(fgf.PowerLaw(), fgp.PowerLaw())
 
-        # self.dust = fgc.FactorizedCrossSpectrum(fgf.ModifiedBlackBody(), fgp.PowerLaw())
+        self.dust = fgc.FactorizedCrossSpectrum(fgf.ModifiedBlackBody(), fgp.PowerLaw())
         # self.rescale_tsz2 = (fgf.ThermalSZ().f(150)/fgf.ThermalSZ().f(153))**2
         # print(self.rescale_tsz2)
 
-            tsz_cib_sed = fgf.Join(fgf.ThermalSZ(), fgf.CIB())
+        #uncomment below
+            # tsz_cib_sed = fgf.Join(fgf.ThermalSZ(), fgf.CIB())
 
-            tsz_cib_power_spectra = [
-                fgp.PowerLawRescaledTemplate(tsz_file),
-                fgp.PowerLawExtendedTemplate(cibc_file),
-                fgp.PowerSpectrumFromFile(cibxtsz_file)
-            ]
+            # tsz_cib_power_spectra = [
+            #     fgp.PowerLawRescaledTemplate(tsz_file),
+            #     fgp.PowerLawExtendedTemplate(cibc_file),
+            #     fgp.PowerSpectrumFromFile(cibxtsz_file)
+            # ]
 
-            tsz_cib_cl = fgp.PowerSpectraAndCovariance(*tsz_cib_power_spectra)
+            # tsz_cib_cl = fgp.PowerSpectraAndCovariance(*tsz_cib_power_spectra)
 
-            self.tSZ_and_CIB = fgc.CorrelatedFactorizedCrossSpectrum(tsz_cib_sed, tsz_cib_cl)
+            # self.tSZ_and_CIB = fgc.CorrelatedFactorizedCrossSpectrum(tsz_cib_sed, tsz_cib_cl)
 
         if self.ells is None:
             self.ells = np.arange(self.lmin, self.lmax + 1)
@@ -1119,115 +1120,35 @@ class Foreground_SPT(Theory):
         ell_0clp = ell_0 * (ell_0 + 1.0)
 
         model = {}
-        if "tt" in self.requested_cls:
-            model["tt", "kSZ"] = fg_params["a_kSZ"] * self.ksz(
-                {"nu": np.array([90,150,220])}, {"ell": ell, "ell_0": ell_0, "alpha": fg_params["alpha_kSZ"]}
-            )
-            model["tt", "cibp"] = fg_params["a_p_s"] * self.cibp(
-                {
-                    "nu": np.array([96.89, 153.37, 221.60])+fg_params["BP_shift_SPT"],
-                    "nu_0": nu_0,
-                    "temp": fg_params["T_d"],
-                    "beta": fg_params["beta_p_s"],
-                },
-                {"ell": ell_clp, "ell_0": ell_0clp, "alpha": fg_params["alpha_p"]},
-            )
-            model["tt", "radio"] = fg_params["a_s_s"] * self.radio(
-                {"nu": np.array([93.50, 149.46, 215.80])+fg_params["BP_shift_SPT"], "nu_0": nu_0, "beta": fg_params["beta_s_s"]},
-                {"ell": ell_clp, "ell_0": ell_0clp, "alpha": fg_params["alpha_s"]},
-            )
-            model["tt", "tSZ"] = fg_params["a_tSZ"] * self.tsz(
-                {"nu": np.array([96.55, 152.26, 220.10])+fg_params["BP_shift_SPT"], "nu_0": nu_0},
-                {"ell": ell, "ell_0": ell_0, "alpha": fg_params["alpha_tSZ"]},
-            )
-            model["tt", "cibc"] = fg_params["a_c"] * self.cibc(
-                {
-                    "nu": np.array([96.89, 153.37, 221.60])+fg_params["BP_shift_SPT"],
-                    "nu_0": nu_0,
-                    "temp": fg_params["T_d"],
-                    "beta": fg_params["beta_c"],
-                },
-                {"ell": ell, "ell_0": ell_0, "alpha": fg_params["alpha_c"]},
-            )
-
-            model["tt", "dust"] = fg_params["a_gtt_s"] * self.dust(
-                {
-                    "nu": np.array([96.89, 153.37, 221.60])+fg_params["BP_shift_SPT"],
-                    "nu_0": 220.,
-                    "temp": 25,
-                    "beta": 1.5,
-                },
-                {"ell": ell, "ell_0": 3000.0, "alpha": -1.2},
-            )
-            model["tt", "tSZ_and_CIB"] = self.tSZ_and_CIB(
-                {
-                    "kwseq": (
-                        {"nu": np.array([96.55, 152.26, 220.10])+fg_params["BP_shift_SPT"], "nu_0": nu_0},
-                        {
-                            "nu":  np.array([96.89, 153.37, 221.60])+fg_params["BP_shift_SPT"],
-                            "nu_0": nu_0,
-                            "temp": fg_params["T_d"],
-                            "beta": fg_params["beta_c"],
-                        },
-                    )
-                },
-                {
-                    "kwseq": (
-                        {
-                            "ell": ell,
-                            "ell_0": ell_0,
-                            "amp": fg_params["a_tSZ"],
-                            "alpha": fg_params["alpha_tSZ"]
-                        },
-                        {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"], "alpha": fg_params["alpha_c"]},
-                        {
-                            "ell": ell,
-                            "ell_0": ell_0,
-                            "amp": -fg_params["xi_yc"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_c"]),
-                        },
-                    )
-                },
-            )
-            model["tt", "tSZxCIB"] = model["tt", "tSZ_and_CIB"] - model["tt", "cibc"] - model["tt", "tSZ"]
-
         # if "tt" in self.requested_cls:
         #     model["tt", "kSZ"] = fg_params["a_kSZ"] * self.ksz(
-        #         {"nu": np.array([90,150,220])+fg_params["BP_shift_SPT"]}, {"ell": ell, "ell_0": ell_0}
+        #         {"nu": np.array([90,150,220])}, {"ell": ell, "ell_0": ell_0, "alpha": fg_params["alpha_kSZ"]}
         #     )
         #     model["tt", "cibp"] = fg_params["a_p_s"] * self.cibp(
         #         {
         #             "nu": np.array([96.89, 153.37, 221.60])+fg_params["BP_shift_SPT"],
         #             "nu_0": nu_0,
         #             "temp": fg_params["T_d"],
-        #             "beta": fg_params["beta_p"],
+        #             "beta": fg_params["beta_p_s"],
         #         },
-        #         {"ell": ell_clp, "ell_0": ell_0clp, "alpha": 1.},
+        #         {"ell": ell_clp, "ell_0": ell_0clp, "alpha": fg_params["alpha_p"]},
         #     )
         #     model["tt", "radio"] = fg_params["a_s_s"] * self.radio(
-        #         {"nu": np.array([93.5, 149.5, 215.8])+fg_params["BP_shift_SPT"], "nu_0": nu_0, "beta": fg_params["beta_s"]},
-        #         {"ell": ell_clp, "ell_0": ell_0clp, "alpha": 1.},
+        #         {"nu": np.array([93.50, 149.46, 215.80])+fg_params["BP_shift_SPT"], "nu_0": nu_0, "beta": fg_params["beta_s_s"]},
+        #         {"ell": ell_clp, "ell_0": ell_0clp, "alpha": fg_params["alpha_s"]},
         #     )
-        #     model["tt", "tSZ"] = fg_params["a_tSZ"] / self.rescale_tsz2 * self.tsz(
-        #         {"nu": np.array([96.6, 152.3, 220.1])+fg_params["BP_shift_SPT"], "nu_0": 150},
-        #         {"ell": ell, "ell_0": ell_0,},
+        #     model["tt", "tSZ"] = fg_params["a_tSZ"] * self.tsz(
+        #         {"nu": np.array([96.55, 152.26, 220.10])+fg_params["BP_shift_SPT"], "nu_0": nu_0},
+        #         {"ell": ell, "ell_0": ell_0, "alpha": fg_params["alpha_tSZ"]},
         #     )
-        #     model["tt", "cibc_1H"] = fg_params["a_c_1H"] * self.cibc_1H(
+        #     model["tt", "cibc"] = fg_params["a_c"] * self.cibc(
         #         {
         #             "nu": np.array([96.89, 153.37, 221.60])+fg_params["BP_shift_SPT"],
         #             "nu_0": nu_0,
         #             "temp": fg_params["T_d"],
         #             "beta": fg_params["beta_c"],
         #         },
-        #         {"ell": ell, "ell_0": ell_0},
-        #     )
-        #     model["tt", "cibc_2H"] = fg_params["a_c_2H"] * self.cibc_2H(
-        #         {
-        #             "nu": np.array([96.89, 153.37, 221.60])+fg_params["BP_shift_SPT"],
-        #             "nu_0": nu_0,
-        #             "temp": fg_params["T_d"],
-        #             "beta": fg_params["beta_c"],
-        #         },
-        #         {"ell": ell, "ell_0": ell_0},
+        #         {"ell": ell, "ell_0": ell_0, "alpha": fg_params["alpha_c"]},
         #     )
 
         #     model["tt", "dust"] = fg_params["a_gtt_s"] * self.dust(
@@ -1239,12 +1160,92 @@ class Foreground_SPT(Theory):
         #         },
         #         {"ell": ell, "ell_0": 3000.0, "alpha": -1.2},
         #     )
-        #     tsz = np.einsum('iil->il', model["tt", "tSZ"] )
-        #     cib = np.einsum('iil->il', model["tt", "cibc_1H"] + model["tt", "cibc_2H"] + model["tt", "cibp"])
-        #     cross = -0.0703 * (ell/ell_0)**2 + 0.612 * (ell/ell_0) + 0.458
-        #     res = np.einsum('l,il,jl-> ijl', cross, np.sqrt(tsz), np.sqrt(cib)) + np.einsum('l,jl,il-> ijl', cross,
-        #                                                                                 np.sqrt(tsz), np.sqrt(cib))
-        #     model["tt", "tSZxCIB"] = -fg_params["xi_yc"] * res
+        #     model["tt", "tSZ_and_CIB"] = self.tSZ_and_CIB(
+        #         {
+        #             "kwseq": (
+        #                 {"nu": np.array([96.55, 152.26, 220.10])+fg_params["BP_shift_SPT"], "nu_0": nu_0},
+        #                 {
+        #                     "nu":  np.array([96.89, 153.37, 221.60])+fg_params["BP_shift_SPT"],
+        #                     "nu_0": nu_0,
+        #                     "temp": fg_params["T_d"],
+        #                     "beta": fg_params["beta_c"],
+        #                 },
+        #             )
+        #         },
+        #         {
+        #             "kwseq": (
+        #                 {
+        #                     "ell": ell,
+        #                     "ell_0": ell_0,
+        #                     "amp": fg_params["a_tSZ"],
+        #                     "alpha": fg_params["alpha_tSZ"]
+        #                 },
+        #                 {"ell": ell, "ell_0": ell_0, "amp": fg_params["a_c"], "alpha": fg_params["alpha_c"]},
+        #                 {
+        #                     "ell": ell,
+        #                     "ell_0": ell_0,
+        #                     "amp": -fg_params["xi_yc"] * np.sqrt(fg_params["a_tSZ"] * fg_params["a_c"]),
+        #                 },
+        #             )
+        #         },
+        #     )
+        #     model["tt", "tSZxCIB"] = model["tt", "tSZ_and_CIB"] - model["tt", "cibc"] - model["tt", "tSZ"]
+
+        if "tt" in self.requested_cls:
+            model["tt", "kSZ"] = fg_params["a_kSZ"] * self.ksz(
+                {"nu": np.array([90,150,220])+fg_params["BP_shift_SPT"]}, {"ell": ell, "ell_0": ell_0}
+            )
+            model["tt", "cibp"] = fg_params["a_p_s"] * self.cibp(
+                {
+                    "nu": np.array([96.89, 153.37, 221.60])+fg_params["BP_shift_SPT"],
+                    "nu_0": nu_0,
+                    "temp": fg_params["T_d"],
+                    "beta": fg_params["beta_p"],
+                },
+                {"ell": ell_clp, "ell_0": ell_0clp, "alpha": 1.},
+            )
+            model["tt", "radio"] = fg_params["a_s_s"] * self.radio(
+                {"nu": np.array([93.5, 149.5, 215.8])+fg_params["BP_shift_SPT"], "nu_0": nu_0, "beta": fg_params["beta_s"]},
+                {"ell": ell_clp, "ell_0": ell_0clp, "alpha": 1.},
+            )
+            model["tt", "tSZ"] = fg_params["a_tSZ"] * self.tsz(
+                {"nu": np.array([96.6, 152.3, 220.1])+fg_params["BP_shift_SPT"], "nu_0": 150},
+                {"ell": ell, "ell_0": ell_0,},
+            )
+            model["tt", "cibc_1H"] = fg_params["a_c_1H"] * self.cibc_1H(
+                {
+                    "nu": np.array([96.89, 153.37, 221.60])+fg_params["BP_shift_SPT"],
+                    "nu_0": nu_0,
+                    "temp": fg_params["T_d"],
+                    "beta": fg_params["beta_c"],
+                },
+                {"ell": ell, "ell_0": ell_0},
+            )
+            model["tt", "cibc_2H"] = fg_params["a_c_2H"] * self.cibc_2H(
+                {
+                    "nu": np.array([96.89, 153.37, 221.60])+fg_params["BP_shift_SPT"],
+                    "nu_0": nu_0,
+                    "temp": fg_params["T_d"],
+                    "beta": fg_params["beta_c"],
+                },
+                {"ell": ell, "ell_0": ell_0},
+            )
+
+            model["tt", "dust"] = fg_params["a_gtt_s"] * self.dust(
+                {
+                    "nu": np.array([96.89, 153.37, 221.60])+fg_params["BP_shift_SPT"],
+                    "nu_0": 220.,
+                    "temp": 25,
+                    "beta": 1.5,
+                },
+                {"ell": ell, "ell_0": 3000.0, "alpha": -1.2},
+            )
+            tsz = np.einsum('iil->il', model["tt", "tSZ"] )
+            cib = np.einsum('iil->il', model["tt", "cibc_1H"] + model["tt", "cibc_2H"] + model["tt", "cibp"])
+            cross = -0.0703 * (ell/ell_0)**2 + 0.612 * (ell/ell_0) + 0.458
+            res = np.einsum('l,il,jl-> ijl', cross, np.sqrt(tsz), np.sqrt(cib)) + np.einsum('l,jl,il-> ijl', cross,
+                                                                                        np.sqrt(tsz), np.sqrt(cib))
+            model["tt", "tSZxCIB"] = -fg_params["xi_yc"] * res
 
         return model
 

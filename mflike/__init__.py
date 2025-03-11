@@ -1,6 +1,6 @@
 from importlib.metadata import PackageNotFoundError, version
 
-from .foreground import BandpowerForeground, Foreground, EEForeground, TEForeground, TTForeground, TTEEForeground, TTTEForeground, TEEEForeground
+from .foreground import BandpowerForeground, Foreground, EEForeground, TEForeground, TTForeground, TTEEForeground, TTTEForeground, TEEEForeground, Foreground_SPT, Foreground_plik
 from .mflike import TT, TE, EE, TTEE, TTTE, TEEE, TTTEEE
 
 try:

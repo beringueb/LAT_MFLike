@@ -12,14 +12,21 @@ a_kSZ:
     max: 1.8
   proposal: 0.1
   latex: a_\mathrm{kSZ}
-a_p:
+a_p_s:
   # drop: True
   prior:
     min: 6.2
     max: 7.6
   proposal: 0.075
   latex: a_p
-beta_p:
+beta_s_s:
+  # drop: True
+  prior:
+    min: 1.8
+    max: 2.2
+  proposal: 0.015
+  latex: \beta_s
+beta_p_s:
   # drop: True
   prior:
     min: 1.8
@@ -40,14 +47,14 @@ beta_c:
     max: 2.4
   proposal: 0.03
   latex: \beta_c
-a_s:
+a_s_s:
   # drop: True
   prior:
     min: 2.8
     max: 3.4
   proposal: 0.01
   latex: a_s
-a_gtt:
+a_gtt_s:
   # drop: True
   prior:
     dist: norm
@@ -89,38 +96,20 @@ alpha_c:             #CIB ell slope
   value: 0.0
   # drop: True
   latex: \alpha_{\rm CIB}
-xi_ys:        #tSZ x radio correlation
+a_c_1H:
   # drop: True
   prior:
-    min: 0
-    max: 0.2
-  proposal: 0.00
-  latex: \xi_\mathrm{tSZ\times radio}
-xi_cs:          #CIB x radio correlation
+    min: 4.4
+    max: 5.4
+  proposal: 0.12
+  latex: a_c1
+a_c_2H:
   # drop: True
   prior:
-    min: 0
-    max: 0.2
-  proposal: 0.00
-  latex: \xi_\mathrm{CIB\times tSZ}
-sigma_cib:
-  prior:
-    min: 0
-    max: 1.
-  latex: \sigma_\mathrm{CIB}
-sigma_radio:
-  prior:
-    min: 0
-    max: 1.
-  latex: \sigma_\mathrm{radio}
-  
-a_coxco:
-  prior:
-    min: 0
-    max: 2
-  latex: a_\mathrm{CO\times CO}
-a_coxcib:
-  prior:
-    min: 0
-    max: 2
-  latex: a_\mathrm{CO\times CIB}
+    min: 4.4
+    max: 5.4
+  proposal: 0.12
+  latex: a_c2
+BP_shift_SPT:
+  value: 0
+  latex: \delta_\matrm{SPT}
