@@ -51,6 +51,7 @@ html_theme_options = {
         "alt_text": "LAT_MFLike - Home",
         "text": html_title,
         "image_light": "_static/logo.png",
+        "image_dark": "_static/logo.png",
     },
     "path_to_docs": "docs",
     "repository_url": "https://github.com/simonsobs/LAT_MFLike",
@@ -64,5 +65,6 @@ html_theme_options = {
     "use_repository_button": True,
     "use_download_button": True,
 }
-nb_execution_mode = "off"
+nb_execution_mode = "cache"
 nb_execution_timeout = -1
+nb_merge_streams = True
